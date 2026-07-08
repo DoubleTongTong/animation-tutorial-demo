@@ -3,7 +3,6 @@
 #include <vector>
 #include <memory>
 #include <vulkan/vulkan.h>
-#include <GLFW/glfw3.h>
 #include "renderer/VkRenderer.h"
 
 class Window {

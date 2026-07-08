@@ -3,7 +3,6 @@
 #include <vector>
 #include <cstring>
 
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 bool Texture::create(VkRenderData& renderData, const std::string& filename) {

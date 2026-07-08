@@ -92,6 +92,21 @@ if(NOT imgui_POPULATED)
 endif()
 
 # ---------------------------------------------------------------------------
+# 3.8 通过 FetchContent 自动下载并配置 tinygltf 库
+# ---------------------------------------------------------------------------
+FetchContent_Declare(
+    tinygltf
+    GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
+    GIT_TAG        v2.9.3
+    SOURCE_DIR     "${CMAKE_CURRENT_SOURCE_DIR}/externals/tinygltf"
+)
+FetchContent_GetProperties(tinygltf)
+if(NOT tinygltf_POPULATED)
+    FetchContent_Populate(tinygltf)
+endif()
+
+
+# ---------------------------------------------------------------------------
 # 4. 创建可执行文件目标
 # ---------------------------------------------------------------------------
 add_executable(AnimationTutorialDemo
@@ -107,6 +122,7 @@ add_executable(AnimationTutorialDemo
     renderer/Texture.cpp
     renderer/Framebuffer.cpp
     renderer/UserInterface.cpp
+    tinygltf.cpp
     tools/Timer.cpp
     tools/Camera.cpp
     # ImGui sources
@@ -170,6 +186,7 @@ target_include_directories(AnimationTutorialDemo PRIVATE
     ${stb_SOURCE_DIR}
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
+    ${tinygltf_SOURCE_DIR}
 )
 
 # 定义编译后 SPV 二进制文件的目录，传递给代码使用

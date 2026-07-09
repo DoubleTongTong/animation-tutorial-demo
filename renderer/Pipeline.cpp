@@ -54,8 +54,8 @@ bool Pipeline::init(VkRenderData& renderData) {
     VkDevice device = renderData.rdVkbDevice.device;
 
     // 1. Read SPV Files (compiled by CMake at build time)
-    auto vertShaderCode = readSpvFile("triangle.vert.spv");
-    auto fragShaderCode = readSpvFile("triangle.frag.spv");
+    auto vertShaderCode = readSpvFile("gltf.vert.spv");
+    auto fragShaderCode = readSpvFile("gltf.frag.spv");
     if (vertShaderCode.empty() || fragShaderCode.empty()) {
         return false;
     }
@@ -127,6 +127,7 @@ bool Pipeline::init(VkRenderData& renderData) {
     // 7. Vertex Input State
     struct Vertex {
         float pos[3];
+        float normal[3];
         float uv[2];
     };
 
@@ -135,7 +136,7 @@ bool Pipeline::init(VkRenderData& renderData) {
     bindingDescription.stride = sizeof(Vertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[2]{};
+    VkVertexInputAttributeDescription attributeDescriptions[3]{};
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -143,14 +144,19 @@ bool Pipeline::init(VkRenderData& renderData) {
 
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescriptions[1].offset = offsetof(Vertex, uv);
+    attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributeDescriptions[1].offset = offsetof(Vertex, normal);
+
+    attributeDescriptions[2].binding = 0;
+    attributeDescriptions[2].location = 2;
+    attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[2].offset = offsetof(Vertex, uv);
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.vertexAttributeDescriptionCount = 3;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
     // 8. Input Assembly State

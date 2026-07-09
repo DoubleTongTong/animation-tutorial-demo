@@ -300,16 +300,17 @@ bool VkRenderer::draw() {
                 mMouseXPos = static_cast<int>(x);
                 mMouseYPos = static_cast<int>(y);
 
-                glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-                if (glfwRawMouseMotionSupported()) {
-                    glfwSetInputMode(mWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-                }
+                // Commented out to prevent cursor locking/jumping issues in Remote Desktop (RDP) environments.
+                // glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                // if (glfwRawMouseMotionSupported()) {
+                //     glfwSetInputMode(mWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+                // }
             }
         }
     } else {
         if (mMouseLock) {
             mMouseLock = false;
-            glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            // glfwSetInputMode(mWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
     }
 

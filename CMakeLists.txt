@@ -122,6 +122,7 @@ add_executable(AnimationTutorialDemo
     renderer/Texture.cpp
     renderer/Framebuffer.cpp
     renderer/UserInterface.cpp
+    renderer/GltfModel.cpp
     tinygltf.cpp
     tools/Timer.cpp
     tools/Camera.cpp
@@ -210,4 +211,12 @@ add_custom_command(TARGET AnimationTutorialDemo POST_BUILD
         "${CMAKE_CURRENT_SOURCE_DIR}/texture"
         "$<TARGET_FILE_DIR:AnimationTutorialDemo>/texture"
     COMMENT "Copying texture directory to executable directory..."
+)
+
+# 自动将 assets 目录复制到可执行文件同级目录 (POST_BUILD)
+add_custom_command(TARGET AnimationTutorialDemo POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:AnimationTutorialDemo>/assets"
+    COMMENT "Copying assets directory to executable directory..."
 )

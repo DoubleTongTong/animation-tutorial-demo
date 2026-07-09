@@ -1,6 +1,7 @@
-#include "VkRenderer.h"
+﻿#include "VkRenderer.h"
 #include "Logger.h"
 #include <vector>
+#include <fstream>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -48,6 +49,20 @@ bool VkRenderer::init() {
     if (!mTexture.initDescriptorSet(mRenderData)) {
         return false;
     }
+
+    // 初始化并加载 glTF 模型
+    mGltfModel = std::make_shared<GltfModel>();
+    std::string modelPath = "assets/Woman.gltf";
+
+    Logger::log(1, "尝试加载 glTF 模型，路径为: %s\n", modelPath.c_str());
+    if (!mGltfModel->loadModel(mRenderData, modelPath)) {
+        Logger::log(1, "加载 glTF 模型失败\n");
+        return false;
+    }
+
+    // 将界面显示的三角形数量更新为 glTF 模型的实际三角形数
+    mRenderData.rdTriangleCount = mGltfModel->getTriangleCount();
+
     if (!mFramebuffer.init(mRenderData)) {
         return false;
     }
@@ -408,7 +423,7 @@ bool VkRenderer::draw() {
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdPipeline);
 
-    mMesh.bind(commandBuffer);
+    // mMesh.bind(commandBuffer); // 注释掉原先的静态 cube 网格绑定
 
     vkCmdBindDescriptorSets(commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -431,8 +446,9 @@ bool VkRenderer::draw() {
     glm::mat4 view = mCamera.getViewMatrix(mRenderData);
 
     glm::mat4 model = glm::mat4(1.0f);
-    model = glm::rotate(model, time * 0.5f, glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::rotate(model, time * 0.8f, glm::vec3(0.0f, 1.0f, 0.0f));
+    // 注释掉旋转，使模型保持静止
+    // model = glm::rotate(model, time * 0.5f, glm::vec3(1.0f, 0.0f, 0.0f));
+    // model = glm::rotate(model, time * 0.8f, glm::vec3(0.0f, 1.0f, 0.0f));
     
     glm::mat4 mvp = proj * view * model;
 
@@ -445,7 +461,8 @@ bool VkRenderer::draw() {
         glm::value_ptr(mvp)
     );
 
-    vkCmdDraw(commandBuffer, mMesh.getVertexCount(), 1, 0, 0);
+    // 绘制加载的 glTF 模型
+    mGltfModel->draw(commandBuffer);
 
     mUserInterface.render(commandBuffer);
 
@@ -511,6 +528,10 @@ void VkRenderer::cleanup() {
     mTexture.cleanup(mRenderData);
     mPipeline.cleanup(mRenderData);
     mMesh.cleanup(mRenderData);
+    if (mGltfModel != nullptr) {
+        mGltfModel->cleanup(mRenderData);
+        mGltfModel.reset();
+    }
     mRenderPass.cleanup(mRenderData);
 
     mFramebuffer.cleanup(mRenderData);

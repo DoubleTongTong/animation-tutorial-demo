@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -14,6 +14,7 @@
 #include "UserInterface.h"
 #include "Timer.h"
 #include "Camera.h"
+#include "GltfModel.h"
 
 class VkRenderer {
 public:
@@ -50,6 +51,8 @@ private:
     Framebuffer mFramebuffer;
     UserInterface mUserInterface;
     Camera mCamera{};
+    // glTF 模型智能指针成员变量
+    std::shared_ptr<GltfModel> mGltfModel = nullptr;
     bool mMouseLock = false;
     int mMouseXPos = 0;
     int mMouseYPos = 0;

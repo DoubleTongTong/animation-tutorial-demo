@@ -1,4 +1,4 @@
-﻿#include "VkRenderer.h"
+#include "VkRenderer.h"
 #include "Logger.h"
 #include <vector>
 #include <fstream>
@@ -436,6 +436,9 @@ bool VkRenderer::draw() {
     // Calculate 3D MVP matrix and push constants using GLM
     float time = static_cast<float>(glfwGetTime());
     
+    // 应用 CPU 蒙皮变形，更新顶点缓冲区数据
+    mGltfModel->applyVertexSkinning(time);
+
     float width = static_cast<float>(mRenderData.rdVkbSwapchain.extent.width);
     float height = static_cast<float>(mRenderData.rdVkbSwapchain.extent.height);
     float aspect = width / height;

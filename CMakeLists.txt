@@ -5,6 +5,11 @@ project(AnimationTutorialDemo LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 强制使用 UTF-8 编码以支持中文注释，解决 MSVC 在中文环境下的 C4819 编码编译错误
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # ---------------------------------------------------------------------------
 # 1. 配置 Vulkan SDK (指向用户指定的本地安装路径)
 # ---------------------------------------------------------------------------
@@ -123,6 +128,7 @@ add_executable(AnimationTutorialDemo
     renderer/Framebuffer.cpp
     renderer/UserInterface.cpp
     renderer/GltfModel.cpp
+    renderer/GltfNode.cpp
     tinygltf.cpp
     tools/Timer.cpp
     tools/Camera.cpp

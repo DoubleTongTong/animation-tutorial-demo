@@ -1,4 +1,4 @@
-﻿#include "GltfModel.h"
+#include "GltfModel.h"
 #include "Logger.h"
 #include <cstring>
 #include <cassert>
@@ -170,6 +170,38 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
         return false;
     }
 
+    // ----------------------------------------------------
+    // 构建骨骼节点树
+    // ----------------------------------------------------
+    if (!mModel->scenes.empty() && !mModel->scenes[0].nodes.empty()) {
+        int rootNodeIndex = mModel->scenes[0].nodes[0];
+        mRootNode = GltfNode::createRoot(rootNodeIndex);
+        getNodeData(mRootNode, glm::mat4(1.0f));
+        getNodes(mRootNode);
+
+        // 打印骨骼树结构以验证
+        mRootNode->printTree();
+    }
+
+    // ----------------------------------------------------
+    // 读取逆绑定矩阵 (Inverse Bind Matrices)
+    // ----------------------------------------------------
+    if (!mModel->skins.empty()) {
+        const tinygltf::Skin& skin = mModel->skins[0];
+        if (skin.inverseBindMatrices >= 0) {
+            const tinygltf::Accessor& accessor = mModel->accessors[skin.inverseBindMatrices];
+            const tinygltf::BufferView& bufferView = mModel->bufferViews[accessor.bufferView];
+            const tinygltf::Buffer& buffer = mModel->buffers[bufferView.buffer];
+
+            mInverseBindMatrices.resize(skin.joints.size());
+            std::memcpy(mInverseBindMatrices.data(),
+                        &buffer.data[bufferView.byteOffset + accessor.byteOffset],
+                        bufferView.byteLength);
+
+            Logger::log(1, "成功加载逆绑定矩阵，关节数: %zu\n", mInverseBindMatrices.size());
+        }
+    }
+
     return true;
 }
 
@@ -209,6 +241,8 @@ void GltfModel::cleanup(VkRenderData& renderData) {
 
     mVertexCount = 0;
     mIndexCount = 0;
+    mRootNode.reset();
+    mInverseBindMatrices.clear();
     mModel.reset();
 }
 
@@ -290,4 +324,71 @@ bool GltfModel::createGPUBuffer(VkRenderData& renderData, VkBufferUsageFlags usa
     // 销毁无用的暂存缓冲
     vmaDestroyBuffer(renderData.rdAllocator, stagingBuffer, stagingBufferAlloc);
     return true;
+}
+
+void GltfModel::getNodeData(std::shared_ptr<GltfNode> node, const glm::mat4& parentMatrix) {
+    if (!mModel || node->mNodeIndex < 0 || node->mNodeIndex >= static_cast<int>(mModel->nodes.size())) {
+        return;
+    }
+
+    const tinygltf::Node& gltfNode = mModel->nodes[node->mNodeIndex];
+    node->mName = gltfNode.name;
+
+    // 读取 translation
+    if (gltfNode.translation.size() == 3) {
+        node->mTranslation = glm::vec3(
+            static_cast<float>(gltfNode.translation[0]),
+            static_cast<float>(gltfNode.translation[1]),
+            static_cast<float>(gltfNode.translation[2])
+        );
+    } else {
+        node->mTranslation = glm::vec3(0.0f);
+    }
+
+    // 读取 rotation (glTF 顺序为 [x, y, z, w]，glm::quat 构造函数顺序为 (w, x, y, z))
+    if (gltfNode.rotation.size() == 4) {
+        node->mRotation = glm::quat(
+            static_cast<float>(gltfNode.rotation[3]), // w
+            static_cast<float>(gltfNode.rotation[0]), // x
+            static_cast<float>(gltfNode.rotation[1]), // y
+            static_cast<float>(gltfNode.rotation[2])  // z
+        );
+    } else {
+        node->mRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    }
+
+    // 读取 scale
+    if (gltfNode.scale.size() == 3) {
+        node->mScale = glm::vec3(
+            static_cast<float>(gltfNode.scale[0]),
+            static_cast<float>(gltfNode.scale[1]),
+            static_cast<float>(gltfNode.scale[2])
+        );
+    } else {
+        node->mScale = glm::vec3(1.0f);
+    }
+
+    // 计算局部 TRS 矩阵和全局节点矩阵
+    node->calculateLocalTRSMatrix();
+    node->mNodeMatrix = parentMatrix * node->mLocalTRSMatrix;
+}
+
+void GltfModel::getNodes(std::shared_ptr<GltfNode> node) {
+    if (!mModel || node->mNodeIndex < 0 || node->mNodeIndex >= static_cast<int>(mModel->nodes.size())) {
+        return;
+    }
+
+    const tinygltf::Node& gltfNode = mModel->nodes[node->mNodeIndex];
+
+    for (int childIndex : gltfNode.children) {
+        auto childNode = GltfNode::createRoot(childIndex);
+
+        // 递归设置子节点数据（传入当前节点的全局矩阵作为父矩阵）
+        getNodeData(childNode, node->mNodeMatrix);
+
+        node->mChildNodes.push_back(childNode);
+
+        // 递归构建子树
+        getNodes(childNode);
+    }
 }

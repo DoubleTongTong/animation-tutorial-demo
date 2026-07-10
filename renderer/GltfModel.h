@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <vector>
 #include <memory>
@@ -7,6 +7,8 @@
 #include <tiny_gltf.h>
 #include "Texture.h"
 #include "VkRenderData.h"
+
+#include "GltfNode.h"
 
 // 顶点结构体，与我们的图形管线着色器输入布局完全一致 (location=0,1,2)
 struct Vertex {
@@ -31,7 +33,17 @@ private:
     // 创建 GPU 本地缓冲区并上传数据的辅助函数
     bool createGPUBuffer(VkRenderData& renderData, VkBufferUsageFlags usage, const void* data, VkDeviceSize size, VkBuffer& buffer, VmaAllocation& allocation);
 
+    // 递归读取并更新节点 TRS 及全局矩阵
+    void getNodeData(std::shared_ptr<GltfNode> node, const glm::mat4& parentMatrix);
+    // 递归遍历并创建子节点结构
+    void getNodes(std::shared_ptr<GltfNode> node);
+
     std::shared_ptr<tinygltf::Model> mModel = nullptr;
+
+    // 骨骼节点树根节点
+    std::shared_ptr<GltfNode> mRootNode = nullptr;
+    // 逆绑定矩阵数组
+    std::vector<glm::mat4> mInverseBindMatrices;
 
     // Vulkan 顶点与索引缓冲区及其分配的显存
     VkBuffer mVertexBuffer = VK_NULL_HANDLE;

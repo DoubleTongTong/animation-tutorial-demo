@@ -36,14 +36,16 @@ public:
     // 清理创建的资源
     void cleanup(VkRenderData& renderData);
 
-    // 应用顶点蒙皮更新
-    void applyVertexSkinning(float time);
+    // 应用顶点蒙皮更新 (常规 LBS / 双四元数 DQS)
+    void applyVertexSkinningLBS(float time);
+    void applyVertexSkinningDQS(float time);
 
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }
 
-    // 获取关节描述符集
-    VkDescriptorSet getJointDescriptorSet() const { return mJointDescriptorSet; }
+    // 获取关节描述符集 (常规 LBS / 双四元数 DQS)
+    VkDescriptorSet getJointDescriptorSetLBS() const { return mJointDescriptorSet; }
+    VkDescriptorSet getJointDescriptorSetDQS() const { return mJointDQSDescriptorSet; }
 
     // 获取纹理描述符集
     VkDescriptorSet getTextureDescriptorSet() const { return mTex.getDescriptorSet(); }
@@ -79,6 +81,7 @@ private:
     std::vector<JointIndices> mJointVec;
     std::vector<JointWeights> mWeightVec;
     std::vector<glm::mat4> mJointMatrices;
+    std::vector<glm::mat2x4> mJointDualQuats;
     std::vector<int> mNodeToJoint;
 
     // Vulkan 顶点与索引缓冲区及其分配的显存
@@ -92,6 +95,10 @@ private:
     VkDescriptorSet mJointDescriptorSet = VK_NULL_HANDLE;
     VkBuffer mJointBuffer = VK_NULL_HANDLE;
     VmaAllocation mJointBufferAlloc = VK_NULL_HANDLE;
+
+    VkDescriptorSet mJointDQSDescriptorSet = VK_NULL_HANDLE;
+    VkBuffer mJointDQSBuffer = VK_NULL_HANDLE;
+    VmaAllocation mJointDQSBufferAlloc = VK_NULL_HANDLE;
 
     uint32_t mVertexCount = 0;
     uint32_t mIndexCount = 0;

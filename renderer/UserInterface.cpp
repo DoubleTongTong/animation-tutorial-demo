@@ -108,6 +108,9 @@ void UserInterface::createFrame(VkRenderData &renderData) {
     ImGui::SameLine();
     ImGui::SliderInt("##FOV", &renderData.rdFieldOfView, 40, 150);
 
+    ImGui::Separator();
+    ImGui::Checkbox("Use Dual Quaternion Skinning", &renderData.rdGPUDualQuatVertexSkinning);
+
     ImGui::Text("Camera Position:");
     ImGui::SameLine();
     ImGui::Text("%s", glm::to_string(renderData.rdCameraWorldPosition).c_str());

@@ -421,13 +421,22 @@ bool VkRenderer::draw() {
 
     vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdPipeline);
+    bool useDQS = mRenderData.rdGPUDualQuatVertexSkinning;
+
+    VkPipeline activePipeline = useDQS
+        ? mRenderData.rdPipelineDQS
+        : mRenderData.rdPipeline;
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline);
 
     // mMesh.bind(commandBuffer); // 注释掉原先的静态 cube 网格绑定
 
+    VkDescriptorSet activeJointSet = useDQS
+        ? mGltfModel->getJointDescriptorSetDQS()
+        : mGltfModel->getJointDescriptorSetLBS();
+
     VkDescriptorSet descriptorSets[] = {
         mGltfModel->getTextureDescriptorSet(),
-        mGltfModel->getJointDescriptorSet()
+        activeJointSet
     };
     vkCmdBindDescriptorSets(commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -440,8 +449,12 @@ bool VkRenderer::draw() {
     // Calculate 3D MVP matrix and push constants using GLM
     float time = static_cast<float>(glfwGetTime());
     
-    // 应用 CPU 蒙皮变形，更新顶点缓冲区数据
-    mGltfModel->applyVertexSkinning(time);
+    // 更新 GPU 蒙皮缓冲区数据 (DQS / LBS)
+    if (mRenderData.rdGPUDualQuatVertexSkinning) {
+        mGltfModel->applyVertexSkinningDQS(time);
+    } else {
+        mGltfModel->applyVertexSkinningLBS(time);
+    }
 
     float width = static_cast<float>(mRenderData.rdVkbSwapchain.extent.width);
     float height = static_cast<float>(mRenderData.rdVkbSwapchain.extent.height);

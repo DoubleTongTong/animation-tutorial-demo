@@ -155,6 +155,7 @@ set(SHADER_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/shader/triangle.frag"
     "${CMAKE_CURRENT_SOURCE_DIR}/shader/gltf.vert"
     "${CMAKE_CURRENT_SOURCE_DIR}/shader/gltf.frag"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shader/gltf_dqs.vert"
 )
 
 set(SPV_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders_spv")

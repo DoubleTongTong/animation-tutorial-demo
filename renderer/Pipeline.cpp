@@ -56,16 +56,19 @@ bool Pipeline::init(VkRenderData& renderData) {
 
     // 1. Read SPV Files (compiled by CMake at build time)
     auto vertShaderCode = readSpvFile("gltf.vert.spv");
+    auto vertDqsShaderCode = readSpvFile("gltf_dqs.vert.spv");
     auto fragShaderCode = readSpvFile("gltf.frag.spv");
-    if (vertShaderCode.empty() || fragShaderCode.empty()) {
+    if (vertShaderCode.empty() || vertDqsShaderCode.empty() || fragShaderCode.empty()) {
         return false;
     }
 
     // 3. Create Shader Modules
     VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
+    VkShaderModule vertDqsShaderModule = createShaderModule(device, vertDqsShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
-    if (vertShaderModule == VK_NULL_HANDLE || fragShaderModule == VK_NULL_HANDLE) {
+    if (vertShaderModule == VK_NULL_HANDLE || vertDqsShaderModule == VK_NULL_HANDLE || fragShaderModule == VK_NULL_HANDLE) {
         if (vertShaderModule != VK_NULL_HANDLE) vkDestroyShaderModule(device, vertShaderModule, nullptr);
+        if (vertDqsShaderModule != VK_NULL_HANDLE) vkDestroyShaderModule(device, vertDqsShaderModule, nullptr);
         if (fragShaderModule != VK_NULL_HANDLE) vkDestroyShaderModule(device, fragShaderModule, nullptr);
         return false;
     }
@@ -279,12 +282,24 @@ bool Pipeline::init(VkRenderData& renderData) {
         Logger::log(1, "%s error: Failed to create graphics pipeline\n", __FUNCTION__);
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
+        vkDestroyShaderModule(device, vertDqsShaderModule, nullptr);
+        return false;
+    }
+
+    // Create DQS pipeline by swapping vertex shader stage module
+    shaderStages[0].module = vertDqsShaderModule;
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &renderData.rdPipelineDQS) != VK_SUCCESS) {
+        Logger::log(1, "%s error: Failed to create DQS graphics pipeline\n", __FUNCTION__);
+        vkDestroyShaderModule(device, fragShaderModule, nullptr);
+        vkDestroyShaderModule(device, vertShaderModule, nullptr);
+        vkDestroyShaderModule(device, vertDqsShaderModule, nullptr);
         return false;
     }
 
     // Clean up shader modules
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(device, vertDqsShaderModule, nullptr);
 
     return true;
 }
@@ -295,6 +310,11 @@ void Pipeline::cleanup(VkRenderData& renderData) {
     if (renderData.rdPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, renderData.rdPipeline, nullptr);
         renderData.rdPipeline = VK_NULL_HANDLE;
+    }
+
+    if (renderData.rdPipelineDQS != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, renderData.rdPipelineDQS, nullptr);
+        renderData.rdPipelineDQS = VK_NULL_HANDLE;
     }
 
     if (renderData.rdPipelineLayout != VK_NULL_HANDLE) {

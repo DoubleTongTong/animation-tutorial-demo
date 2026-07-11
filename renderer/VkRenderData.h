@@ -30,6 +30,7 @@ struct VkRenderData {
     std::vector<VkCommandBuffer> rdCommandBuffers;
     VkRenderPass rdRenderpass = VK_NULL_HANDLE;
     VkPipeline rdPipeline = VK_NULL_HANDLE;
+    VkPipeline rdPipelineDQS = VK_NULL_HANDLE;
     VkPipelineLayout rdPipelineLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout rdTextureDescriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout rdJointDescriptorSetLayout = VK_NULL_HANDLE;
@@ -40,6 +41,7 @@ struct VkRenderData {
     VkImageView rdDepthImageView = VK_NULL_HANDLE;
 
     // ImGui specific dynamic data
+    bool rdGPUDualQuatVertexSkinning = false;
     uint32_t rdTriangleCount = 0;
     float rdFrameTime = 0.0f;
     int rdFieldOfView = 90;

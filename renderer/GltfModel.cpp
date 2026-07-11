@@ -1,4 +1,7 @@
 #include "GltfModel.h"
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/dual_quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include "Logger.h"
 #include <cstring>
 #include <cassert>
@@ -293,23 +296,36 @@ bool GltfModel::createJointSSBO(VkRenderData& renderData) {
         return false;
     }
 
+    // 创建 DQS SSBO 缓冲
+    VkBufferCreateInfo dqsBufferInfo{};
+    dqsBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    dqsBufferInfo.size = sizeof(glm::mat2x4) * mJointMatrices.size();
+    dqsBufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    dqsBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vmaCreateBuffer(renderData.rdAllocator, &dqsBufferInfo, &allocInfo,
+                        &mJointDQSBuffer, &mJointDQSBufferAlloc, nullptr) != VK_SUCCESS) {
+        Logger::log(1, "创建 DQS 关节 SSBO 缓冲失败\n");
+        return false;
+    }
+
     // 创建描述符池
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSize.descriptorCount = 1;
+    poolSize.descriptorCount = 2;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = 1;
+    poolInfo.maxSets = 2;
 
     if (vkCreateDescriptorPool(renderData.rdVkbDevice.device, &poolInfo, nullptr, &mJointDescriptorPool) != VK_SUCCESS) {
         Logger::log(1, "创建关节描述符池失败\n");
         return false;
     }
 
-    // 分配描述符集
+    // 分配描述符集 1 (LBS)
     VkDescriptorSetAllocateInfo descriptorSetAllocInfo{};
     descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptorSetAllocInfo.descriptorPool = mJointDescriptorPool;
@@ -321,7 +337,13 @@ bool GltfModel::createJointSSBO(VkRenderData& renderData) {
         return false;
     }
 
-    // 更新描述符集绑定
+    // 分配描述符集 2 (DQS)
+    if (vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &descriptorSetAllocInfo, &mJointDQSDescriptorSet) != VK_SUCCESS) {
+        Logger::log(1, "分配 DQS 关节描述符集失败\n");
+        return false;
+    }
+
+    // 更新描述符集绑定 1 (LBS)
     VkDescriptorBufferInfo bufferInfoDesc{};
     bufferInfoDesc.buffer = mJointBuffer;
     bufferInfoDesc.offset = 0;
@@ -337,6 +359,23 @@ bool GltfModel::createJointSSBO(VkRenderData& renderData) {
     descriptorWrite.pBufferInfo = &bufferInfoDesc;
 
     vkUpdateDescriptorSets(renderData.rdVkbDevice.device, 1, &descriptorWrite, 0, nullptr);
+
+    // 更新描述符集绑定 2 (DQS)
+    VkDescriptorBufferInfo dqsBufferInfoDesc{};
+    dqsBufferInfoDesc.buffer = mJointDQSBuffer;
+    dqsBufferInfoDesc.offset = 0;
+    dqsBufferInfoDesc.range = sizeof(glm::mat2x4) * mJointMatrices.size();
+
+    VkWriteDescriptorSet dqsDescriptorWrite{};
+    dqsDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    dqsDescriptorWrite.dstSet = mJointDQSDescriptorSet;
+    dqsDescriptorWrite.dstBinding = 0;
+    dqsDescriptorWrite.dstArrayElement = 0;
+    dqsDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    dqsDescriptorWrite.descriptorCount = 1;
+    dqsDescriptorWrite.pBufferInfo = &dqsBufferInfoDesc;
+
+    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, 1, &dqsDescriptorWrite, 0, nullptr);
 
     return true;
 }
@@ -366,11 +405,18 @@ void GltfModel::cleanup(VkRenderData& renderData) {
         mJointDescriptorPool = VK_NULL_HANDLE;
     }
     mJointDescriptorSet = VK_NULL_HANDLE;
+    mJointDQSDescriptorSet = VK_NULL_HANDLE;
 
     if (mJointBuffer != VK_NULL_HANDLE) {
         vmaDestroyBuffer(renderData.rdAllocator, mJointBuffer, mJointBufferAlloc);
         mJointBuffer = VK_NULL_HANDLE;
         mJointBufferAlloc = VK_NULL_HANDLE;
+    }
+
+    if (mJointDQSBuffer != VK_NULL_HANDLE) {
+        vmaDestroyBuffer(renderData.rdAllocator, mJointDQSBuffer, mJointDQSBufferAlloc);
+        mJointDQSBuffer = VK_NULL_HANDLE;
+        mJointDQSBufferAlloc = VK_NULL_HANDLE;
     }
 
     // 销毁顶点缓冲并归还 VMA 显存
@@ -637,7 +683,7 @@ void GltfModel::updateJoints(std::shared_ptr<GltfNode> node, const glm::mat4& pa
     }
 }
 
-void GltfModel::applyVertexSkinning(float time) {
+void GltfModel::applyVertexSkinningLBS(float time) {
     if (!mRootNode || mJointMatrices.empty() || mJointBuffer == VK_NULL_HANDLE || !mRenderDataPtr) {
         return;
     }
@@ -650,5 +696,43 @@ void GltfModel::applyVertexSkinning(float time) {
     if (vmaMapMemory(mRenderDataPtr->rdAllocator, mJointBufferAlloc, &mappedData) == VK_SUCCESS) {
         std::memcpy(mappedData, mJointMatrices.data(), mJointMatrices.size() * sizeof(glm::mat4));
         vmaUnmapMemory(mRenderDataPtr->rdAllocator, mJointBufferAlloc);
+    }
+}
+
+void GltfModel::applyVertexSkinningDQS(float time) {
+    if (!mRootNode || mJointMatrices.empty() || mJointDQSBuffer == VK_NULL_HANDLE || !mRenderDataPtr) {
+        return;
+    }
+
+    // 1. 递归更新骨骼的全局矩阵与关节变换矩阵
+    updateJoints(mRootNode, glm::mat4(1.0f), time);
+
+    // 2. 计算并上传双四元数 (SSBO)
+    mJointDualQuats.resize(mJointMatrices.size());
+    for (size_t i = 0; i < mJointMatrices.size(); ++i) {
+        glm::quat orientation;
+        glm::vec3 scale;
+        glm::vec3 translation;
+        glm::vec3 skew;
+        glm::vec4 perspective;
+        glm::dualquat dq;
+        if (glm::decompose(mJointMatrices[i], scale, orientation, translation, skew, perspective)) {
+            orientation = glm::normalize(orientation);
+            if (orientation.w < 0.0f) {
+                orientation = -orientation;
+            }
+            dq[0] = orientation;
+            dq[1] = glm::quat(0.0f, translation.x, translation.y, translation.z) * orientation * 0.5f;
+            mJointDualQuats[i] = glm::mat2x4_cast(dq);
+        } else {
+            dq[0] = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+            dq[1] = glm::quat(0.0f, 0.0f, 0.0f, 0.0f);
+            mJointDualQuats[i] = glm::mat2x4_cast(dq);
+        }
+    }
+    void* mappedDataDQS = nullptr;
+    if (vmaMapMemory(mRenderDataPtr->rdAllocator, mJointDQSBufferAlloc, &mappedDataDQS) == VK_SUCCESS) {
+        std::memcpy(mappedDataDQS, mJointDualQuats.data(), mJointDualQuats.size() * sizeof(glm::mat2x4));
+        vmaUnmapMemory(mRenderDataPtr->rdAllocator, mJointDQSBufferAlloc);
     }
 }

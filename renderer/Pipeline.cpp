@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <vector>
+#include <cstdint>
 
 #ifndef SHADER_SPV_DIR
 #define SHADER_SPV_DIR ""
@@ -84,7 +85,7 @@ bool Pipeline::init(VkRenderData& renderData) {
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
-    // 5. Create Descriptor Set Layout
+    // 5. Create Descriptor Set Layout (Set 0)
     VkDescriptorSetLayoutBinding samplerLayoutBinding{};
     samplerLayoutBinding.binding = 0;
     samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -97,8 +98,29 @@ bool Pipeline::init(VkRenderData& renderData) {
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &samplerLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &renderData.rdDescriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &renderData.rdTextureDescriptorSetLayout) != VK_SUCCESS) {
         Logger::log(1, "%s error: Failed to create descriptor set layout\n", __FUNCTION__);
+        vkDestroyShaderModule(device, fragShaderModule, nullptr);
+        vkDestroyShaderModule(device, vertShaderModule, nullptr);
+        return false;
+    }
+
+    // 5.5 Create Joint Descriptor Set Layout (Set 1)
+    VkDescriptorSetLayoutBinding jointLayoutBinding{};
+    jointLayoutBinding.binding = 0;
+    jointLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    jointLayoutBinding.descriptorCount = 1;
+    jointLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    jointLayoutBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo jointLayoutInfo{};
+    jointLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    jointLayoutInfo.bindingCount = 1;
+    jointLayoutInfo.pBindings = &jointLayoutBinding;
+
+    if (vkCreateDescriptorSetLayout(device, &jointLayoutInfo, nullptr, &renderData.rdJointDescriptorSetLayout) != VK_SUCCESS) {
+        Logger::log(1, "%s error: Failed to create joint descriptor set layout\n", __FUNCTION__);
+        vkDestroyDescriptorSetLayout(device, renderData.rdTextureDescriptorSetLayout, nullptr);
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
         return false;
@@ -110,15 +132,19 @@ bool Pipeline::init(VkRenderData& renderData) {
     pushConstantRange.offset = 0;
     pushConstantRange.size = 64; // sizeof(float) * 16 (for 4x4 matrix)
 
+    VkDescriptorSetLayout layouts[] = { renderData.rdTextureDescriptorSetLayout, renderData.rdJointDescriptorSetLayout };
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &renderData.rdDescriptorSetLayout;
+    pipelineLayoutInfo.setLayoutCount = 2;
+    pipelineLayoutInfo.pSetLayouts = layouts;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &renderData.rdPipelineLayout) != VK_SUCCESS) {
         Logger::log(1, "%s error: Failed to create pipeline layout\n", __FUNCTION__);
+        vkDestroyDescriptorSetLayout(device, renderData.rdJointDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, renderData.rdTextureDescriptorSetLayout, nullptr);
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
         return false;
@@ -129,6 +155,8 @@ bool Pipeline::init(VkRenderData& renderData) {
         float pos[3];
         float normal[3];
         float uv[2];
+        float jointNum[4];
+        float jointWeight[4];
     };
 
     VkVertexInputBindingDescription bindingDescription{};
@@ -136,7 +164,7 @@ bool Pipeline::init(VkRenderData& renderData) {
     bindingDescription.stride = sizeof(Vertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attributeDescriptions[3]{};
+    VkVertexInputAttributeDescription attributeDescriptions[5]{};
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -152,11 +180,21 @@ bool Pipeline::init(VkRenderData& renderData) {
     attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
     attributeDescriptions[2].offset = offsetof(Vertex, uv);
 
+    attributeDescriptions[3].binding = 0;
+    attributeDescriptions[3].location = 3;
+    attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attributeDescriptions[3].offset = offsetof(Vertex, jointNum);
+
+    attributeDescriptions[4].binding = 0;
+    attributeDescriptions[4].location = 4;
+    attributeDescriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attributeDescriptions[4].offset = offsetof(Vertex, jointWeight);
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = 3;
+    vertexInputInfo.vertexAttributeDescriptionCount = 5;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions;
 
     // 8. Input Assembly State
@@ -264,8 +302,13 @@ void Pipeline::cleanup(VkRenderData& renderData) {
         renderData.rdPipelineLayout = VK_NULL_HANDLE;
     }
 
-    if (renderData.rdDescriptorSetLayout != VK_NULL_HANDLE) {
-        vkDestroyDescriptorSetLayout(device, renderData.rdDescriptorSetLayout, nullptr);
-        renderData.rdDescriptorSetLayout = VK_NULL_HANDLE;
+    if (renderData.rdTextureDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, renderData.rdTextureDescriptorSetLayout, nullptr);
+        renderData.rdTextureDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (renderData.rdJointDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, renderData.rdJointDescriptorSetLayout, nullptr);
+        renderData.rdJointDescriptorSetLayout = VK_NULL_HANDLE;
     }
 }

@@ -425,10 +425,14 @@ bool VkRenderer::draw() {
 
     // mMesh.bind(commandBuffer); // 注释掉原先的静态 cube 网格绑定
 
+    VkDescriptorSet descriptorSets[] = {
+        mGltfModel->getTextureDescriptorSet(),
+        mGltfModel->getJointDescriptorSet()
+    };
     vkCmdBindDescriptorSets(commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
-        mRenderData.rdPipelineLayout, 0, 1,
-        &mRenderData.rdDescriptorSet, 0, nullptr);
+        mRenderData.rdPipelineLayout, 0, 2,
+        descriptorSets, 0, nullptr);
 
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);

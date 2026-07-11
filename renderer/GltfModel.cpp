@@ -76,6 +76,30 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
         uvStride = uvAccessor->ByteStride(*uvView);
     }
 
+    // ----------------------------------------------------
+    // 读取并解析关节索引与权重数据
+    // ----------------------------------------------------
+    auto jointIt = primitive.attributes.find("JOINTS_0");
+    auto weightIt = primitive.attributes.find("WEIGHTS_0");
+
+    if (jointIt != primitive.attributes.end() && weightIt != primitive.attributes.end()) {
+        const tinygltf::Accessor& jointAccessor = mModel->accessors[jointIt->second];
+        const tinygltf::BufferView& jointView = mModel->bufferViews[jointAccessor.bufferView];
+        const tinygltf::Buffer& jointBuffer = mModel->buffers[jointView.buffer];
+        mJointVec.resize(jointAccessor.count);
+        std::memcpy(mJointVec.data(), &jointBuffer.data[jointView.byteOffset + jointAccessor.byteOffset], jointView.byteLength);
+
+        const tinygltf::Accessor& weightAccessor = mModel->accessors[weightIt->second];
+        const tinygltf::BufferView& weightView = mModel->bufferViews[weightAccessor.bufferView];
+        const tinygltf::Buffer& weightBuffer = mModel->buffers[weightView.buffer];
+        mWeightVec.resize(weightAccessor.count);
+        std::memcpy(mWeightVec.data(), &weightBuffer.data[weightView.byteOffset + weightAccessor.byteOffset], weightView.byteLength);
+
+        Logger::log(1, "成功加载关节索引与权重，顶点数: %zu\n", mJointVec.size());
+    } else {
+        Logger::log(1, "警告：模型不包含 JOINTS_0 或 WEIGHTS_0 属性！\n");
+    }
+
     // 交织拼装顶点结构体数组
     std::vector<Vertex> vertices(mVertexCount);
     for (size_t i = 0; i < mVertexCount; ++i) {
@@ -102,7 +126,6 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
         }
 
         // 读取纹理 UV 坐标
-        // 读取纹理 UV 坐标
         if (hasUV) {
             const float* uvPtr = reinterpret_cast<const float*>(
                 &uvBuffer->data[uvAccessor->byteOffset + uvView->byteOffset + i * uvStride]
@@ -113,35 +136,35 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
             vertices[i].uv[0] = 0.0f;
             vertices[i].uv[1] = 0.0f;
         }
-    }
 
-    // ----------------------------------------------------
-    // 读取并解析关节索引与权重数据
-    // ----------------------------------------------------
-    auto jointIt = primitive.attributes.find("JOINTS_0");
-    auto weightIt = primitive.attributes.find("WEIGHTS_0");
+        // 填充关节与权重
+        if (i < mJointVec.size()) {
+            vertices[i].jointNum[0] = mJointVec[i].idx[0];
+            vertices[i].jointNum[1] = mJointVec[i].idx[1];
+            vertices[i].jointNum[2] = mJointVec[i].idx[2];
+            vertices[i].jointNum[3] = mJointVec[i].idx[3];
+        } else {
+            vertices[i].jointNum[0] = 0;
+            vertices[i].jointNum[1] = 0;
+            vertices[i].jointNum[2] = 0;
+            vertices[i].jointNum[3] = 0;
+        }
 
-    if (jointIt != primitive.attributes.end() && weightIt != primitive.attributes.end()) {
-        const tinygltf::Accessor& jointAccessor = mModel->accessors[jointIt->second];
-        const tinygltf::BufferView& jointView = mModel->bufferViews[jointAccessor.bufferView];
-        const tinygltf::Buffer& jointBuffer = mModel->buffers[jointView.buffer];
-        mJointVec.resize(jointAccessor.count);
-        std::memcpy(mJointVec.data(), &jointBuffer.data[jointView.byteOffset + jointAccessor.byteOffset], jointView.byteLength);
-
-        const tinygltf::Accessor& weightAccessor = mModel->accessors[weightIt->second];
-        const tinygltf::BufferView& weightView = mModel->bufferViews[weightAccessor.bufferView];
-        const tinygltf::Buffer& weightBuffer = mModel->buffers[weightView.buffer];
-        mWeightVec.resize(weightAccessor.count);
-        std::memcpy(mWeightVec.data(), &weightBuffer.data[weightView.byteOffset + weightAccessor.byteOffset], weightView.byteLength);
-
-        Logger::log(1, "成功加载关节索引与权重，顶点数: %zu\n", mJointVec.size());
-    } else {
-        Logger::log(1, "警告：模型不包含 JOINTS_0 或 WEIGHTS_0 属性！\n");
+        if (i < mWeightVec.size()) {
+            vertices[i].jointWeight[0] = mWeightVec[i].w[0];
+            vertices[i].jointWeight[1] = mWeightVec[i].w[1];
+            vertices[i].jointWeight[2] = mWeightVec[i].w[2];
+            vertices[i].jointWeight[3] = mWeightVec[i].w[3];
+        } else {
+            vertices[i].jointWeight[0] = 1.0f;
+            vertices[i].jointWeight[1] = 0.0f;
+            vertices[i].jointWeight[2] = 0.0f;
+            vertices[i].jointWeight[3] = 0.0f;
+        }
     }
 
     // 备份原始顶点数据
     mOriginalVertices = vertices;
-    mAlteredVertices = vertices;
     mRenderDataPtr = &renderData;
 
     // 检查并解析索引缓冲
@@ -238,7 +261,81 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
             int destinationNode = skin.joints[i];
             mNodeToJoint[destinationNode] = static_cast<int>(i);
         }
+
+        // 创建骨骼关节矩阵 SSBO 缓冲和描述符
+        if (!createJointSSBO(renderData)) {
+            return false;
+        }
     }
+
+    return true;
+}
+
+bool GltfModel::createJointSSBO(VkRenderData& renderData) {
+    if (mJointMatrices.empty()) {
+        return true;
+    }
+
+    // 创建骨骼关节矩阵 SSBO 缓冲
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeof(glm::mat4) * mJointMatrices.size();
+    bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+    if (vmaCreateBuffer(renderData.rdAllocator, &bufferInfo, &allocInfo,
+                        &mJointBuffer, &mJointBufferAlloc, nullptr) != VK_SUCCESS) {
+        Logger::log(1, "创建关节矩阵 SSBO 缓冲失败\n");
+        return false;
+    }
+
+    // 创建描述符池
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 1;
+
+    if (vkCreateDescriptorPool(renderData.rdVkbDevice.device, &poolInfo, nullptr, &mJointDescriptorPool) != VK_SUCCESS) {
+        Logger::log(1, "创建关节描述符池失败\n");
+        return false;
+    }
+
+    // 分配描述符集
+    VkDescriptorSetAllocateInfo descriptorSetAllocInfo{};
+    descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptorSetAllocInfo.descriptorPool = mJointDescriptorPool;
+    descriptorSetAllocInfo.descriptorSetCount = 1;
+    descriptorSetAllocInfo.pSetLayouts = &renderData.rdJointDescriptorSetLayout;
+
+    if (vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &descriptorSetAllocInfo, &mJointDescriptorSet) != VK_SUCCESS) {
+        Logger::log(1, "分配关节描述符集失败\n");
+        return false;
+    }
+
+    // 更新描述符集绑定
+    VkDescriptorBufferInfo bufferInfoDesc{};
+    bufferInfoDesc.buffer = mJointBuffer;
+    bufferInfoDesc.offset = 0;
+    bufferInfoDesc.range = sizeof(glm::mat4) * mJointMatrices.size();
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = mJointDescriptorSet;
+    descriptorWrite.dstBinding = 0;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfoDesc;
+
+    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, 1, &descriptorWrite, 0, nullptr);
 
     return true;
 }
@@ -262,6 +359,18 @@ void GltfModel::draw(VkCommandBuffer commandBuffer) {
 void GltfModel::cleanup(VkRenderData& renderData) {
     // 销毁并重置纹理描述符和图像资源
     mTex.cleanup(renderData);
+
+    if (mJointDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(renderData.rdVkbDevice.device, mJointDescriptorPool, nullptr);
+        mJointDescriptorPool = VK_NULL_HANDLE;
+    }
+    mJointDescriptorSet = VK_NULL_HANDLE;
+
+    if (mJointBuffer != VK_NULL_HANDLE) {
+        vmaDestroyBuffer(renderData.rdAllocator, mJointBuffer, mJointBufferAlloc);
+        mJointBuffer = VK_NULL_HANDLE;
+        mJointBufferAlloc = VK_NULL_HANDLE;
+    }
 
     // 销毁顶点缓冲并归还 VMA 显存
     if (mVertexBuffer != VK_NULL_HANDLE) {
@@ -520,40 +629,17 @@ void GltfModel::updateJoints(std::shared_ptr<GltfNode> node, const glm::mat4& pa
 }
 
 void GltfModel::applyVertexSkinning(float time) {
-    if (mOriginalVertices.empty() || mJointVec.empty() || mWeightVec.empty() || !mRenderDataPtr) {
+    if (!mRootNode || mJointMatrices.empty() || mJointBuffer == VK_NULL_HANDLE || !mRenderDataPtr) {
         return;
     }
 
     // 1. 递归更新骨骼的全局矩阵与关节变换矩阵
     updateJoints(mRootNode, glm::mat4(1.0f), time);
 
-    // 2. CPU端加权计算每个顶点的变形后位置与法线
-    for (size_t i = 0; i < mOriginalVertices.size(); ++i) {
-        const auto& joint = mJointVec[i];
-        const auto& weight = mWeightVec[i];
-
-        // 混合四个关节的矩阵变换
-        glm::mat4 skinMat =
-            weight.w[0] * mJointMatrices[joint.idx[0]] +
-            weight.w[1] * mJointMatrices[joint.idx[1]] +
-            weight.w[2] * mJointMatrices[joint.idx[2]] +
-            weight.w[3] * mJointMatrices[joint.idx[3]];
-
-        // 变换顶点位置
-        glm::vec3 origPos(mOriginalVertices[i].pos[0], mOriginalVertices[i].pos[1], mOriginalVertices[i].pos[2]);
-        glm::vec3 alteredPos = glm::vec3(skinMat * glm::vec4(origPos, 1.0f));
-        mAlteredVertices[i].pos[0] = alteredPos.x;
-        mAlteredVertices[i].pos[1] = alteredPos.y;
-        mAlteredVertices[i].pos[2] = alteredPos.z;
-
-        // 变换顶点法线
-        glm::vec3 origNormal(mOriginalVertices[i].normal[0], mOriginalVertices[i].normal[1], mOriginalVertices[i].normal[2]);
-        glm::vec3 alteredNormal = glm::normalize(glm::vec3(skinMat * glm::vec4(origNormal, 0.0f)));
-        mAlteredVertices[i].normal[0] = alteredNormal.x;
-        mAlteredVertices[i].normal[1] = alteredNormal.y;
-        mAlteredVertices[i].normal[2] = alteredNormal.z;
+    // 2. 将矩阵直接上传到 GPU 存储缓冲区 (SSBO)
+    void* mappedData = nullptr;
+    if (vmaMapMemory(mRenderDataPtr->rdAllocator, mJointBufferAlloc, &mappedData) == VK_SUCCESS) {
+        std::memcpy(mappedData, mJointMatrices.data(), mJointMatrices.size() * sizeof(glm::mat4));
+        vmaUnmapMemory(mRenderDataPtr->rdAllocator, mJointBufferAlloc);
     }
-
-    // 3. 上传到 GPU
-    updateVertexBuffer(*mRenderDataPtr, mAlteredVertices.data(), mAlteredVertices.size() * sizeof(Vertex));
 }

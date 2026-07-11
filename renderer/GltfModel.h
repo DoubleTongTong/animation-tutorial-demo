@@ -15,6 +15,8 @@ struct Vertex {
     float pos[3];
     float normal[3];
     float uv[2];
+    float jointNum[4];
+    float jointWeight[4];
 };
 
 struct JointIndices {
@@ -40,7 +42,16 @@ public:
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }
 
+    // 获取关节描述符集
+    VkDescriptorSet getJointDescriptorSet() const { return mJointDescriptorSet; }
+
+    // 获取纹理描述符集
+    VkDescriptorSet getTextureDescriptorSet() const { return mTex.getDescriptorSet(); }
+
 private:
+    // 创建 GPU 关节矩阵 SSBO 资源及描述符
+    bool createJointSSBO(VkRenderData& renderData);
+
     // 创建 GPU 本地缓冲区并上传数据的辅助函数
     bool createGPUBuffer(VkRenderData& renderData, VkBufferUsageFlags usage, const void* data, VkDeviceSize size, VkBuffer& buffer, VmaAllocation& allocation);
 
@@ -65,7 +76,6 @@ private:
     // 蒙皮所需的顶点备份与关节权重数组
     VkRenderData* mRenderDataPtr = nullptr;
     std::vector<Vertex> mOriginalVertices;
-    std::vector<Vertex> mAlteredVertices;
     std::vector<JointIndices> mJointVec;
     std::vector<JointWeights> mWeightVec;
     std::vector<glm::mat4> mJointMatrices;
@@ -76,6 +86,12 @@ private:
     VmaAllocation mVertexBufferAlloc = VK_NULL_HANDLE;
     VkBuffer mIndexBuffer = VK_NULL_HANDLE;
     VmaAllocation mIndexBufferAlloc = VK_NULL_HANDLE;
+
+    // GPU 骨骼矩阵 SSBO 资源及描述符资源
+    VkDescriptorPool mJointDescriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet mJointDescriptorSet = VK_NULL_HANDLE;
+    VkBuffer mJointBuffer = VK_NULL_HANDLE;
+    VmaAllocation mJointBufferAlloc = VK_NULL_HANDLE;
 
     uint32_t mVertexCount = 0;
     uint32_t mIndexCount = 0;

@@ -1,4 +1,4 @@
-﻿#include "Texture.h"
+#include "Texture.h"
 #include "Logger.h"
 #include <vector>
 #include <cstring>
@@ -142,9 +142,9 @@ bool Texture::initDescriptorSet(VkRenderData& renderData) {
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = mDescriptorPool;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &renderData.rdDescriptorSetLayout;
+    allocInfo.pSetLayouts = &renderData.rdTextureDescriptorSetLayout;
 
-    if (vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &allocInfo, &renderData.rdDescriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &allocInfo, &mDescriptorSet) != VK_SUCCESS) {
         Logger::log(1, "%s error: Failed to allocate descriptor set\n", __FUNCTION__);
         return false;
     }
@@ -157,7 +157,7 @@ bool Texture::initDescriptorSet(VkRenderData& renderData) {
 
     VkWriteDescriptorSet descriptorWrite{};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = renderData.rdDescriptorSet;
+    descriptorWrite.dstSet = mDescriptorSet;
     descriptorWrite.dstBinding = 0;
     descriptorWrite.dstArrayElement = 0;
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -176,6 +176,8 @@ void Texture::cleanup(VkRenderData& renderData) {
         vkDestroyDescriptorPool(device, mDescriptorPool, nullptr);
         mDescriptorPool = VK_NULL_HANDLE;
     }
+
+    mDescriptorSet = VK_NULL_HANDLE;
 
     if (mTextureSampler != VK_NULL_HANDLE) {
         vkDestroySampler(device, mTextureSampler, nullptr);

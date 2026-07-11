@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <vulkan/vulkan.h>
 #include "vk_mem_alloc.h"
 #include "VkRenderData.h"
@@ -9,6 +9,8 @@ public:
     bool create(VkRenderData& renderData, const std::string& filename = "texture/awesomeface.png");
     bool initDescriptorSet(VkRenderData& renderData);
     void cleanup(VkRenderData& renderData);
+
+    VkDescriptorSet getDescriptorSet() const { return mDescriptorSet; }
 
 private:
     VkCommandBuffer beginSingleTimeCommands(VkRenderData& renderData);
@@ -21,4 +23,5 @@ private:
     VkImageView mTextureImageView = VK_NULL_HANDLE;
     VkSampler mTextureSampler = VK_NULL_HANDLE;
     VkDescriptorPool mDescriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet mDescriptorSet = VK_NULL_HANDLE;
 };

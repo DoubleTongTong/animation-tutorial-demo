@@ -31,8 +31,8 @@ struct VkRenderData {
     VkRenderPass rdRenderpass = VK_NULL_HANDLE;
     VkPipeline rdPipeline = VK_NULL_HANDLE;
     VkPipelineLayout rdPipelineLayout = VK_NULL_HANDLE;
-    VkDescriptorSetLayout rdDescriptorSetLayout = VK_NULL_HANDLE;
-    VkDescriptorSet rdDescriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSetLayout rdTextureDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout rdJointDescriptorSetLayout = VK_NULL_HANDLE;
 
     // Depth buffer objects
     VkImage rdDepthImage = VK_NULL_HANDLE;

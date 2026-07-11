@@ -4,6 +4,7 @@
 #include <cassert>
 
 bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename) {
+    mModelPath = filename;
     mModel = std::make_shared<tinygltf::Model>();
     tinygltf::TinyGLTF loader;
     std::string err;
@@ -607,9 +608,17 @@ void GltfModel::updateVertexBuffer(VkRenderData& renderData, const void* data, V
 void GltfModel::updateJoints(std::shared_ptr<GltfNode> node, const glm::mat4& parentMatrix, float time) {
     if (!node) return;
 
-    // Hardcode骨骼动画：让 Spine 关节（节点索引为 29）随时间做左右周期摆动旋转
-    if (node->mNodeIndex == 29) {
-        node->mRotation = glm::angleAxis(glm::sin(time * 2.0f) * 0.4f, glm::vec3(0.0f, 0.0f, 1.0f));
+    // 根据模型路径显式匹配并播放骨骼动画
+    if (mModelPath.find("dq.gltf") != std::string::npos) {
+        // Cube (dq.gltf) 的“拧麻花”动画：让 Bone.001 绕其局部 Y 轴（纵向）正弦旋转
+        if (node->mName == "Bone.001" || node->mNodeIndex == 0) {
+            node->mRotation = glm::angleAxis(glm::sin(time * 1.5f) * 1.5f, glm::vec3(0.0f, 1.0f, 0.0f));
+        }
+    } else if (mModelPath.find("Woman.gltf") != std::string::npos) {
+        // Woman.gltf 的摆动动画：让 Spine 关节（节点索引为 29）随时间做左右周期摆动旋转
+        if (node->mNodeIndex == 29) {
+            node->mRotation = glm::angleAxis(glm::sin(time * 2.0f) * 0.4f, glm::vec3(0.0f, 0.0f, 1.0f));
+        }
     }
 
     node->calculateLocalTRSMatrix();

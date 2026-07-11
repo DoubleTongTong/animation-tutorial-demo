@@ -98,4 +98,7 @@ private:
 
     // 模型附带的单个贴图
     Texture mTex{};
+
+    // 模型文件路径，用于在更新骨骼时匹配动画
+    std::string mModelPath;
 };

@@ -272,6 +272,14 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
         }
     }
 
+    // 初始化扁平化节点列表并递归填充它
+    mNodeList.clear();
+    mNodeList.resize(mModel->nodes.size(), nullptr);
+    buildNodeList(mRootNode);
+
+    // 读取动画数据
+    getAnimations();
+
     return true;
 }
 
@@ -655,15 +663,17 @@ void GltfModel::updateJoints(std::shared_ptr<GltfNode> node, const glm::mat4& pa
     if (!node) return;
 
     // 根据模型路径显式匹配并播放骨骼动画
-    if (mModelPath.find("dq.gltf") != std::string::npos) {
-        // Cube (dq.gltf) 的“拧麻花”动画：让 Bone.001 绕其局部 Y 轴（纵向）正弦旋转
-        if (node->mName == "Bone.001" || node->mNodeIndex == 0) {
-            node->mRotation = glm::angleAxis(glm::sin(time * 1.5f) * 1.5f, glm::vec3(0.0f, 1.0f, 0.0f));
-        }
-    } else if (mModelPath.find("Woman.gltf") != std::string::npos) {
-        // Woman.gltf 的摆动动画：让 Spine 关节（节点索引为 29）随时间做左右周期摆动旋转
-        if (node->mNodeIndex == 29) {
-            node->mRotation = glm::angleAxis(glm::sin(time * 2.0f) * 0.4f, glm::vec3(0.0f, 0.0f, 1.0f));
+    if (mAnimClips.empty()) {
+        if (mModelPath.find("dq.gltf") != std::string::npos) {
+            // Cube (dq.gltf) 的“拧麻花”动画：让 Bone.001 绕其局部 Y 轴（纵向）正弦旋转
+            if (node->mName == "Bone.001" || node->mNodeIndex == 0) {
+                node->mRotation = glm::angleAxis(glm::sin(time * 1.5f) * 1.5f, glm::vec3(0.0f, 1.0f, 0.0f));
+            }
+        } else if (mModelPath.find("Woman.gltf") != std::string::npos) {
+            // Woman.gltf 的摆动动画：让 Spine 关节（节点索引为 29）随时间做左右周期摆动旋转
+            if (node->mNodeIndex == 29) {
+                node->mRotation = glm::angleAxis(glm::sin(time * 2.0f) * 0.4f, glm::vec3(0.0f, 0.0f, 1.0f));
+            }
         }
     }
 
@@ -688,6 +698,12 @@ void GltfModel::applyVertexSkinningLBS(float time) {
         return;
     }
 
+    // 更新动画数据
+    if (!mAnimClips.empty()) {
+        float clipTime = std::fmod(time, mAnimClips[0].getClipEndTime());
+        mAnimClips[0].setAnimationFrame(mNodeList, clipTime);
+    }
+
     // 1. 递归更新骨骼的全局矩阵与关节变换矩阵
     updateJoints(mRootNode, glm::mat4(1.0f), time);
 
@@ -702,6 +718,12 @@ void GltfModel::applyVertexSkinningLBS(float time) {
 void GltfModel::applyVertexSkinningDQS(float time) {
     if (!mRootNode || mJointMatrices.empty() || mJointDQSBuffer == VK_NULL_HANDLE || !mRenderDataPtr) {
         return;
+    }
+
+    // 更新动画数据
+    if (!mAnimClips.empty()) {
+        float clipTime = std::fmod(time, mAnimClips[0].getClipEndTime());
+        mAnimClips[0].setAnimationFrame(mNodeList, clipTime);
     }
 
     // 1. 递归更新骨骼的全局矩阵与关节变换矩阵
@@ -735,4 +757,25 @@ void GltfModel::applyVertexSkinningDQS(float time) {
         std::memcpy(mappedDataDQS, mJointDualQuats.data(), mJointDualQuats.size() * sizeof(glm::mat2x4));
         vmaUnmapMemory(mRenderDataPtr->rdAllocator, mJointDQSBufferAlloc);
     }
+}
+
+void GltfModel::buildNodeList(std::shared_ptr<GltfNode> node) {
+    if (!node) return;
+    if (node->mNodeIndex >= 0 && node->mNodeIndex < static_cast<int>(mNodeList.size())) {
+        mNodeList[node->mNodeIndex] = node;
+    }
+    for (const auto& child : node->mChildNodes) {
+        buildNodeList(child);
+    }
+}
+
+void GltfModel::getAnimations() {
+    for (const auto& anim : mModel->animations) {
+        GltfAnimationClip clip(anim.name);
+        for (const auto& channel : anim.channels) {
+            clip.addChannel(mModel, anim, channel);
+        }
+        mAnimClips.push_back(clip);
+    }
+    Logger::log(1, "成功加载动画片段数: %zu\n", mAnimClips.size());
 }

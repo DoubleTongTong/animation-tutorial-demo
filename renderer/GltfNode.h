@@ -24,4 +24,8 @@ public:
     static std::shared_ptr<GltfNode> createRoot(int nodeIndex);
     void calculateLocalTRSMatrix();
     void printTree(int indent = 0);
+
+    void setScale(const glm::vec3& scale) { mScale = scale; }
+    void setTranslation(const glm::vec3& translation) { mTranslation = translation; }
+    void setRotation(const glm::quat& rotation) { mRotation = rotation; }
 };

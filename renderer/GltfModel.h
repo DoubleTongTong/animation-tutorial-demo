@@ -9,6 +9,7 @@
 #include "VkRenderData.h"
 
 #include "GltfNode.h"
+#include "GltfAnimationClip.h"
 
 // 顶点结构体，与我们的图形管线着色器输入布局完全一致 (location=0,1,2)
 struct Vertex {
@@ -108,4 +109,11 @@ private:
 
     // 模型文件路径，用于在更新骨骼时匹配动画
     std::string mModelPath;
+
+    // 动画片段列表与扁平化节点列表
+    std::vector<GltfAnimationClip> mAnimClips{};
+    std::vector<std::shared_ptr<GltfNode>> mNodeList;
+
+    void getAnimations();
+    void buildNodeList(std::shared_ptr<GltfNode> node);
 };

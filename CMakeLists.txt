@@ -129,6 +129,8 @@ add_executable(AnimationTutorialDemo
     renderer/UserInterface.cpp
     renderer/GltfModel.cpp
     renderer/GltfNode.cpp
+    renderer/GltfAnimationChannel.cpp
+    renderer/GltfAnimationClip.cpp
     tinygltf.cpp
     tools/Timer.cpp
     tools/Camera.cpp

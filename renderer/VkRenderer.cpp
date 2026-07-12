@@ -52,7 +52,7 @@ bool VkRenderer::init() {
 
     // 初始化并加载 glTF 模型
     mGltfModel = std::make_shared<GltfModel>();
-    std::string modelPath = "assets/dq.gltf";
+    std::string modelPath = "assets/Woman.gltf";
 
     Logger::log(1, "尝试加载 glTF 模型，路径为: %s\n", modelPath.c_str());
     if (!mGltfModel->loadModel(mRenderData, modelPath)) {

@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
@@ -52,4 +53,13 @@ struct VkRenderData {
     int rdMoveUp = 0;
     float rdTickDiff = 0.0f;
     glm::vec3 rdCameraWorldPosition = glm::vec3(0.5f, 0.25f, 1.0f);
+
+    // Animation control variables
+    bool rdPlayAnimation = true;
+    std::string rdClipName = "None";
+    int rdAnimClip = 0;
+    int rdAnimClipSize = 0;
+    float rdAnimSpeed = 1.0f;
+    float rdAnimTimePosition = 0.0f;
+    float rdAnimEndTime = 0.0f;
 };

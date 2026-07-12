@@ -62,6 +62,7 @@ bool VkRenderer::init() {
 
     // 将界面显示的三角形数量更新为 glTF 模型的实际三角形数
     mRenderData.rdTriangleCount = mGltfModel->getTriangleCount();
+    mRenderData.rdAnimClipSize = mGltfModel->getClipSize();
 
     if (!mFramebuffer.init(mRenderData)) {
         return false;
@@ -449,6 +450,15 @@ bool VkRenderer::draw() {
     // Calculate 3D MVP matrix and push constants using GLM
     float time = static_cast<float>(glfwGetTime());
     
+    mRenderData.rdClipName = mGltfModel->getClipName(mRenderData.rdAnimClip);
+
+    if (mRenderData.rdPlayAnimation) {
+        mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdAnimSpeed);
+    } else {
+        mRenderData.rdAnimEndTime = mGltfModel->getAnimationEndTime(mRenderData.rdAnimClip);
+        mGltfModel->setAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdAnimTimePosition);
+    }
+
     // 更新 GPU 蒙皮缓冲区数据 (DQS / LBS)
     if (mRenderData.rdGPUDualQuatVertexSkinning) {
         mGltfModel->applyVertexSkinningDQS(time);

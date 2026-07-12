@@ -1,4 +1,5 @@
 #include "GltfModel.h"
+#include <GLFW/glfw3.h>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/dual_quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
@@ -698,12 +699,6 @@ void GltfModel::applyVertexSkinningLBS(float time) {
         return;
     }
 
-    // 更新动画数据
-    if (!mAnimClips.empty()) {
-        float clipTime = std::fmod(time, mAnimClips[0].getClipEndTime());
-        mAnimClips[0].setAnimationFrame(mNodeList, clipTime);
-    }
-
     // 1. 递归更新骨骼的全局矩阵与关节变换矩阵
     updateJoints(mRootNode, glm::mat4(1.0f), time);
 
@@ -718,12 +713,6 @@ void GltfModel::applyVertexSkinningLBS(float time) {
 void GltfModel::applyVertexSkinningDQS(float time) {
     if (!mRootNode || mJointMatrices.empty() || mJointDQSBuffer == VK_NULL_HANDLE || !mRenderDataPtr) {
         return;
-    }
-
-    // 更新动画数据
-    if (!mAnimClips.empty()) {
-        float clipTime = std::fmod(time, mAnimClips[0].getClipEndTime());
-        mAnimClips[0].setAnimationFrame(mNodeList, clipTime);
     }
 
     // 1. 递归更新骨骼的全局矩阵与关节变换矩阵
@@ -778,4 +767,35 @@ void GltfModel::getAnimations() {
         mAnimClips.push_back(clip);
     }
     Logger::log(1, "成功加载动画片段数: %zu\n", mAnimClips.size());
+}
+
+std::string GltfModel::getClipName(int index) {
+    if (index >= 0 && index < static_cast<int>(mAnimClips.size())) {
+        return mAnimClips[index].getClipName();
+    }
+    return "None";
+}
+
+float GltfModel::getAnimationEndTime(int index) {
+    if (index >= 0 && index < static_cast<int>(mAnimClips.size())) {
+        return mAnimClips[index].getClipEndTime();
+    }
+    return 0.0f;
+}
+
+void GltfModel::playAnimation(int index, float speed) {
+    if (index >= 0 && index < static_cast<int>(mAnimClips.size())) {
+        float time = static_cast<float>(glfwGetTime());
+        float clipTime = std::fmod(time * speed, mAnimClips[index].getClipEndTime());
+        mAnimClips[index].setAnimationFrame(mNodeList, clipTime);
+        if (mRenderDataPtr) {
+            mRenderDataPtr->rdAnimTimePosition = clipTime;
+        }
+    }
+}
+
+void GltfModel::setAnimationFrame(int index, float timePos) {
+    if (index >= 0 && index < static_cast<int>(mAnimClips.size())) {
+        mAnimClips[index].setAnimationFrame(mNodeList, timePos);
+    }
 }

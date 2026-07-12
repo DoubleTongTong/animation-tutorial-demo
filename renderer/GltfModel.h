@@ -41,6 +41,13 @@ public:
     void applyVertexSkinningLBS(float time);
     void applyVertexSkinningDQS(float time);
 
+    // 动画控制相关辅助函数
+    int getClipSize() const { return static_cast<int>(mAnimClips.size()); }
+    std::string getClipName(int index);
+    float getAnimationEndTime(int index);
+    void playAnimation(int index, float speed);
+    void setAnimationFrame(int index, float timePos);
+
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }
 

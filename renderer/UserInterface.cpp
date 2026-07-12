@@ -111,6 +111,38 @@ void UserInterface::createFrame(VkRenderData &renderData) {
     ImGui::Separator();
     ImGui::Checkbox("Use Dual Quaternion Skinning", &renderData.rdGPUDualQuatVertexSkinning);
 
+    ImGui::Separator();
+    if (ImGui::CollapsingHeader("glTF Animation")) {
+        ImGui::Text("Clip No");
+        ImGui::SameLine();
+        int maxClipIdx = renderData.rdAnimClipSize > 0 ? renderData.rdAnimClipSize - 1 : 0;
+        ImGui::SliderInt("##Clip", &renderData.rdAnimClip, 0, maxClipIdx);
+
+        ImGui::Text("Clip Name: %s", renderData.rdClipName.c_str());
+
+        ImGui::Checkbox("Play Animation", &renderData.rdPlayAnimation);
+
+        if (!renderData.rdPlayAnimation) {
+            ImGui::BeginDisabled();
+        }
+        ImGui::Text("Speed  ");
+        ImGui::SameLine();
+        ImGui::SliderFloat("##ClipSpeed", &renderData.rdAnimSpeed, 0.0f, 2.0f);
+        if (!renderData.rdPlayAnimation) {
+            ImGui::EndDisabled();
+        }
+
+        if (renderData.rdPlayAnimation) {
+            ImGui::BeginDisabled();
+        }
+        ImGui::Text("Timepos");
+        ImGui::SameLine();
+        ImGui::SliderFloat("##ClipPos", &renderData.rdAnimTimePosition, 0.0f, renderData.rdAnimEndTime);
+        if (renderData.rdPlayAnimation) {
+            ImGui::EndDisabled();
+        }
+    }
+
     ImGui::Text("Camera Position:");
     ImGui::SameLine();
     ImGui::Text("%s", glm::to_string(renderData.rdCameraWorldPosition).c_str());

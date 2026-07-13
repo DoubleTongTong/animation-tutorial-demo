@@ -46,7 +46,10 @@ public:
     std::string getClipName(int index);
     float getAnimationEndTime(int index);
     void playAnimation(int index, float speed, float blendFactor = 1.0f);
+    void playAnimation(int sourceAnimNum, int destAnimNum, float speedDivider, float blendFactor);
     void blendAnimationFrame(int index, float timePos, float blendFactor);
+    void crossBlendAnimationFrame(int sourceAnimNumber, int destAnimNumber, float time, float blendFactor);
+    void resetNodeData();
 
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }
@@ -73,6 +76,7 @@ private:
 
     // 递归读取并更新节点 TRS 及全局矩阵
     void getNodeData(std::shared_ptr<GltfNode> node, const glm::mat4& parentMatrix);
+    void resetNodeData(std::shared_ptr<GltfNode> treeNode, glm::mat4 parentNodeMatrix);
     // 递归遍历并创建子节点结构
     void getNodes(std::shared_ptr<GltfNode> node);
 

@@ -799,3 +799,46 @@ void GltfModel::blendAnimationFrame(int index, float timePos, float blendFactor)
         mAnimClips[index].blendAnimationFrame(mNodeList, timePos, blendFactor);
     }
 }
+
+void GltfModel::playAnimation(int sourceAnimNum, int destAnimNum, float speedDivider, float blendFactor) {
+    if (sourceAnimNum >= 0 && sourceAnimNum < static_cast<int>(mAnimClips.size()) &&
+        destAnimNum >= 0 && destAnimNum < static_cast<int>(mAnimClips.size())) {
+        float time = static_cast<float>(glfwGetTime());
+        float sourceEndTime = mAnimClips[sourceAnimNum].getClipEndTime();
+        float clipTime = std::fmod(time * speedDivider, sourceEndTime);
+
+        crossBlendAnimationFrame(sourceAnimNum, destAnimNum, clipTime, blendFactor);
+        if (mRenderDataPtr) {
+            mRenderDataPtr->rdAnimTimePosition = clipTime;
+        }
+    }
+}
+
+void GltfModel::crossBlendAnimationFrame(int sourceAnimNumber, int destAnimNumber, float time, float blendFactor) {
+    if (sourceAnimNumber >= 0 && sourceAnimNumber < static_cast<int>(mAnimClips.size()) &&
+        destAnimNumber >= 0 && destAnimNumber < static_cast<int>(mAnimClips.size())) {
+        float sourceAnimDuration = mAnimClips[sourceAnimNumber].getClipEndTime();
+        float destAnimDuration = mAnimClips[destAnimNumber].getClipEndTime();
+
+        float scaledTime = time * (destAnimDuration / sourceAnimDuration);
+
+        mAnimClips[sourceAnimNumber].setAnimationFrame(mNodeList, time);
+        mAnimClips[destAnimNumber].blendAnimationFrame(mNodeList, scaledTime, blendFactor);
+    }
+}
+
+void GltfModel::resetNodeData() {
+    if (mRootNode) {
+        getNodeData(mRootNode, glm::mat4(1.0f));
+        resetNodeData(mRootNode, glm::mat4(1.0f));
+    }
+}
+
+void GltfModel::resetNodeData(std::shared_ptr<GltfNode> treeNode, glm::mat4 parentNodeMatrix) {
+    if (!treeNode) return;
+    glm::mat4 treeNodeMatrix = treeNode->mNodeMatrix;
+    for (auto &childNode : treeNode->mChildNodes) {
+        getNodeData(childNode, treeNodeMatrix);
+        resetNodeData(childNode, treeNodeMatrix);
+    }
+}

@@ -451,12 +451,27 @@ bool VkRenderer::draw() {
     float time = static_cast<float>(glfwGetTime());
     
     mRenderData.rdClipName = mGltfModel->getClipName(mRenderData.rdAnimClip);
+    mRenderData.rdCrossBlendDestClipName = mGltfModel->getClipName(mRenderData.rdCrossBlendDestAnimClip);
+
+    static bool blendingChanged = mRenderData.rdCrossBlending;
+    if (blendingChanged != mRenderData.rdCrossBlending) {
+        blendingChanged = mRenderData.rdCrossBlending;
+        mGltfModel->resetNodeData();
+    }
 
     if (mRenderData.rdPlayAnimation) {
-        mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdAnimSpeed, mRenderData.rdAnimBlendFactor);
+        if (mRenderData.rdCrossBlending) {
+            mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdCrossBlendDestAnimClip, mRenderData.rdAnimSpeed, mRenderData.rdAnimCrossBlendFactor);
+        } else {
+            mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdAnimSpeed, mRenderData.rdAnimBlendFactor);
+        }
     } else {
         mRenderData.rdAnimEndTime = mGltfModel->getAnimationEndTime(mRenderData.rdAnimClip);
-        mGltfModel->blendAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdAnimTimePosition, mRenderData.rdAnimBlendFactor);
+        if (mRenderData.rdCrossBlending) {
+            mGltfModel->crossBlendAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdCrossBlendDestAnimClip, mRenderData.rdAnimTimePosition, mRenderData.rdAnimCrossBlendFactor);
+        } else {
+            mGltfModel->blendAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdAnimTimePosition, mRenderData.rdAnimBlendFactor);
+        }
     }
 
     // 更新 GPU 蒙皮缓冲区数据 (DQS / LBS)

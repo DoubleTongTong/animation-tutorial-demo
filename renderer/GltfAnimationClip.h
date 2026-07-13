@@ -20,6 +20,10 @@ public:
         float time,
         float blendFactor);
 
+    void setAnimationFrame(
+        std::vector<std::shared_ptr<GltfNode>>& nodes,
+        float time);
+
     float getClipEndTime();
     std::string getClipName();
 

@@ -15,6 +15,10 @@ public:
     glm::vec3 mTranslation = glm::vec3(0.0f);
     glm::quat mRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 
+    glm::vec3 mBlendScale = glm::vec3(1.0f);
+    glm::vec3 mBlendTranslation = glm::vec3(0.0f);
+    glm::quat mBlendRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+
     glm::mat4 mLocalTRSMatrix = glm::mat4(1.0f);
     glm::mat4 mNodeMatrix = glm::mat4(1.0f);
     glm::mat4 mInverseBindMatrix = glm::mat4(1.0f);
@@ -25,7 +29,22 @@ public:
     void calculateLocalTRSMatrix();
     void printTree(int indent = 0);
 
-    void setScale(const glm::vec3& scale) { mScale = scale; }
-    void setTranslation(const glm::vec3& translation) { mTranslation = translation; }
-    void setRotation(const glm::quat& rotation) { mRotation = rotation; }
+    void setScale(const glm::vec3& scale) {
+        mScale = scale;
+        mBlendScale = scale;
+    }
+
+    void setTranslation(const glm::vec3& translation) {
+        mTranslation = translation;
+        mBlendTranslation = translation;
+    }
+
+    void setRotation(const glm::quat& rotation) {
+        mRotation = rotation;
+        mBlendRotation = rotation;
+    }
+
+    void blendScale(glm::vec3 scale, float blendFactor);
+    void blendTranslation(glm::vec3 translation, float blendFactor);
+    void blendRotation(glm::quat rotation, float blendFactor);
 };

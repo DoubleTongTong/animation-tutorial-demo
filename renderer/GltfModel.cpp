@@ -539,36 +539,36 @@ void GltfModel::getNodeData(std::shared_ptr<GltfNode> node, const glm::mat4& par
 
     // 读取 translation
     if (gltfNode.translation.size() == 3) {
-        node->mTranslation = glm::vec3(
+        node->setTranslation(glm::vec3(
             static_cast<float>(gltfNode.translation[0]),
             static_cast<float>(gltfNode.translation[1]),
             static_cast<float>(gltfNode.translation[2])
-        );
+        ));
     } else {
-        node->mTranslation = glm::vec3(0.0f);
+        node->setTranslation(glm::vec3(0.0f));
     }
 
     // 读取 rotation (glTF 顺序为 [x, y, z, w]，glm::quat 构造函数顺序为 (w, x, y, z))
     if (gltfNode.rotation.size() == 4) {
-        node->mRotation = glm::quat(
+        node->setRotation(glm::quat(
             static_cast<float>(gltfNode.rotation[3]), // w
             static_cast<float>(gltfNode.rotation[0]), // x
             static_cast<float>(gltfNode.rotation[1]), // y
             static_cast<float>(gltfNode.rotation[2])  // z
-        );
+        ));
     } else {
-        node->mRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        node->setRotation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
     }
 
     // 读取 scale
     if (gltfNode.scale.size() == 3) {
-        node->mScale = glm::vec3(
+        node->setScale(glm::vec3(
             static_cast<float>(gltfNode.scale[0]),
             static_cast<float>(gltfNode.scale[1]),
             static_cast<float>(gltfNode.scale[2])
-        );
+        ));
     } else {
-        node->mScale = glm::vec3(1.0f);
+        node->setScale(glm::vec3(1.0f));
     }
 
     // 计算局部 TRS 矩阵和全局节点矩阵
@@ -668,12 +668,12 @@ void GltfModel::updateJoints(std::shared_ptr<GltfNode> node, const glm::mat4& pa
         if (mModelPath.find("dq.gltf") != std::string::npos) {
             // Cube (dq.gltf) 的“拧麻花”动画：让 Bone.001 绕其局部 Y 轴（纵向）正弦旋转
             if (node->mName == "Bone.001" || node->mNodeIndex == 0) {
-                node->mRotation = glm::angleAxis(glm::sin(time * 1.5f) * 1.5f, glm::vec3(0.0f, 1.0f, 0.0f));
+                node->setRotation(glm::angleAxis(glm::sin(time * 1.5f) * 1.5f, glm::vec3(0.0f, 1.0f, 0.0f)));
             }
         } else if (mModelPath.find("Woman.gltf") != std::string::npos) {
             // Woman.gltf 的摆动动画：让 Spine 关节（节点索引为 29）随时间做左右周期摆动旋转
             if (node->mNodeIndex == 29) {
-                node->mRotation = glm::angleAxis(glm::sin(time * 2.0f) * 0.4f, glm::vec3(0.0f, 0.0f, 1.0f));
+                node->setRotation(glm::angleAxis(glm::sin(time * 2.0f) * 0.4f, glm::vec3(0.0f, 0.0f, 1.0f)));
             }
         }
     }
@@ -783,19 +783,19 @@ float GltfModel::getAnimationEndTime(int index) {
     return 0.0f;
 }
 
-void GltfModel::playAnimation(int index, float speed) {
+void GltfModel::playAnimation(int index, float speed, float blendFactor) {
     if (index >= 0 && index < static_cast<int>(mAnimClips.size())) {
         float time = static_cast<float>(glfwGetTime());
         float clipTime = std::fmod(time * speed, mAnimClips[index].getClipEndTime());
-        mAnimClips[index].setAnimationFrame(mNodeList, clipTime);
+        blendAnimationFrame(index, clipTime, blendFactor);
         if (mRenderDataPtr) {
             mRenderDataPtr->rdAnimTimePosition = clipTime;
         }
     }
 }
 
-void GltfModel::setAnimationFrame(int index, float timePos) {
+void GltfModel::blendAnimationFrame(int index, float timePos, float blendFactor) {
     if (index >= 0 && index < static_cast<int>(mAnimClips.size())) {
-        mAnimClips[index].setAnimationFrame(mNodeList, timePos);
+        mAnimClips[index].blendAnimationFrame(mNodeList, timePos, blendFactor);
     }
 }

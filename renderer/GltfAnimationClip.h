@@ -15,9 +15,10 @@ public:
         tinygltf::Animation anim,
         tinygltf::AnimationChannel channel);
 
-    void setAnimationFrame(
+    void blendAnimationFrame(
         std::vector<std::shared_ptr<GltfNode>>& nodes,
-        float time);
+        float time,
+        float blendFactor);
 
     float getClipEndTime();
     std::string getClipName();

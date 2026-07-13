@@ -45,8 +45,8 @@ public:
     int getClipSize() const { return static_cast<int>(mAnimClips.size()); }
     std::string getClipName(int index);
     float getAnimationEndTime(int index);
-    void playAnimation(int index, float speed);
-    void setAnimationFrame(int index, float timePos);
+    void playAnimation(int index, float speed, float blendFactor = 1.0f);
+    void blendAnimationFrame(int index, float timePos, float blendFactor);
 
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }

@@ -12,9 +12,10 @@ void GltfAnimationClip::addChannel(
     mAnimationChannels.push_back(chan);
 }
 
-void GltfAnimationClip::setAnimationFrame(
+void GltfAnimationClip::blendAnimationFrame(
     std::vector<std::shared_ptr<GltfNode>>& nodes,
-    float time) {
+    float time,
+    float blendFactor) {
     for (auto &channel : mAnimationChannels) {
         int targetNode = channel->getTargetNode();
         if (targetNode < 0 || targetNode >= static_cast<int>(nodes.size()) || !nodes[targetNode]) {
@@ -23,13 +24,13 @@ void GltfAnimationClip::setAnimationFrame(
 
         switch (channel->getTargetPath()) {
             case ETargetPath::ROTATION:
-                nodes.at(targetNode)->setRotation(channel->getRotation(time));
+                nodes.at(targetNode)->blendRotation(channel->getRotation(time), blendFactor);
                 break;
             case ETargetPath::TRANSLATION:
-                nodes.at(targetNode)->setTranslation(channel->getTranslation(time));
+                nodes.at(targetNode)->blendTranslation(channel->getTranslation(time), blendFactor);
                 break;
             case ETargetPath::SCALE:
-                nodes.at(targetNode)->setScale(channel->getScaling(time));
+                nodes.at(targetNode)->blendScale(channel->getScaling(time), blendFactor);
                 break;
         }
     }

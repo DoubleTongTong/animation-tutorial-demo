@@ -143,6 +143,12 @@ void UserInterface::createFrame(VkRenderData &renderData) {
         }
     }
 
+    if (ImGui::CollapsingHeader("glTF Animation Blending")) {
+        ImGui::Text("Blend Factor");
+        ImGui::SameLine();
+        ImGui::SliderFloat("##BlendFactor", &renderData.rdAnimBlendFactor, 0.0f, 1.0f);
+    }
+
     ImGui::Text("Camera Position:");
     ImGui::SameLine();
     ImGui::Text("%s", glm::to_string(renderData.rdCameraWorldPosition).c_str());

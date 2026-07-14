@@ -6,7 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-class GltfNode {
+class GltfNode : public std::enable_shared_from_this<GltfNode> {
 public:
     int mNodeIndex = -1;
     std::string mName;
@@ -50,4 +50,14 @@ public:
     void blendScale(glm::vec3 scale, float blendFactor);
     void blendTranslation(glm::vec3 translation, float blendFactor);
     void blendRotation(glm::quat rotation, float blendFactor);
+
+    std::shared_ptr<GltfNode> getParentNode();
+    glm::quat getLocalRotation();
+    glm::quat getGlobalRotation();
+    glm::vec3 getGlobalPosition();
+    void updateNodeAndChildMatrices();
+    void calculateNodeMatrix();
+
+    // Make parentNode weak pointer public for easier assignment or keep private/friend
+    std::weak_ptr<GltfNode> mParentNode;
 };

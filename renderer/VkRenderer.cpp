@@ -338,7 +338,7 @@ bool VkRenderer::draw() {
     mRenderData.rdFrameTime = frameStartTime - prevFrameStartTime;
     prevFrameStartTime = frameStartTime;
 
-    mUserInterface.createFrame(mRenderData);
+
 
     if (mFramebufferResized) {
         mFramebufferResized = false;
@@ -468,6 +468,20 @@ bool VkRenderer::draw() {
         mGltfModel->resetNodeData();
     }
 
+    static ikMode lastIkMode = mRenderData.rdIkMode;
+    if (lastIkMode != mRenderData.rdIkMode) {
+        lastIkMode = mRenderData.rdIkMode;
+        mGltfModel->resetNodeData();
+    }
+
+    static int lastEffector = mRenderData.rdIkEffectorNode;
+    static int lastIkRoot = mRenderData.rdIkRootNode;
+    if (lastEffector != mRenderData.rdIkEffectorNode || lastIkRoot != mRenderData.rdIkRootNode) {
+        lastEffector = mRenderData.rdIkEffectorNode;
+        lastIkRoot = mRenderData.rdIkRootNode;
+        mGltfModel->resetNodeData();
+    }
+
     bool useCrossBlending = (mRenderData.rdBlendingMode == blendMode::crossfade || mRenderData.rdBlendingMode == blendMode::additive);
 
     if (mRenderData.rdPlayAnimation) {
@@ -485,6 +499,11 @@ bool VkRenderer::draw() {
         }
     }
 
+    if (mRenderData.rdIkMode == ikMode::ccd) {
+        mGltfModel->setInverseKinematicsNodes(mRenderData.rdIkEffectorNode, mRenderData.rdIkRootNode);
+        mGltfModel->solveIKByCCD(mRenderData.rdIkTargetPos);
+    }
+
     // 更新 GPU 蒙皮缓冲区数据 (DQS / LBS)
     if (mRenderData.rdGPUDualQuatVertexSkinning == skinningMode::dualQuat) {
         mGltfModel->applyVertexSkinningDQS(time);
@@ -500,6 +519,10 @@ bool VkRenderer::draw() {
     proj[1][1] *= -1;
     
     glm::mat4 view = mCamera.getViewMatrix(mRenderData);
+    glm::mat4 viewProj = proj * view;
+
+    // 创建 ImGui 界面帧，并传入 viewProj 矩阵绘制投影坐标轴
+    mUserInterface.createFrame(mRenderData, viewProj);
 
     glm::mat4 model = glm::mat4(1.0f);
     // 注释掉旋转，使模型保持静止

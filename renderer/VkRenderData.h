@@ -19,6 +19,11 @@ enum class blendMode {
     additive
 };
 
+enum class ikMode {
+    off = 0,
+    ccd
+};
+
 struct VkRenderData {
     VmaAllocator rdAllocator = VK_NULL_HANDLE;
     vkb::Instance rdVkbInstance{};
@@ -82,4 +87,10 @@ struct VkRenderData {
     int rdModelNodeCount = 0;
     int rdSkelSplitNode = 0;
     std::vector<std::string> rdSkelSplitNodeNames{};
+
+    ikMode rdIkMode = ikMode::off;
+    int rdIkIterations = 15;
+    glm::vec3 rdIkTargetPos = glm::vec3(0.0f, 1.0f, 0.0f);
+    int rdIkEffectorNode = 0;
+    int rdIkRootNode = 0;
 };

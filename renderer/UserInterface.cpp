@@ -73,10 +73,60 @@ void UserInterface::init(VkRenderData &renderData, GLFWwindow* window) {
     Logger::log(1, "%s: UserInterface successfully initialized\n", __FUNCTION__);
 }
 
-void UserInterface::createFrame(VkRenderData &renderData) {
+glm::vec2 projectWorldToScreen(const glm::vec3& worldPos, const glm::mat4& viewProj, float width, float height) {
+    glm::vec4 clipPos = viewProj * glm::vec4(worldPos, 1.0f);
+    if (clipPos.w <= 0.0f) {
+        return glm::vec2(-1.0f, -1.0f);
+    }
+    glm::vec3 ndcPos = glm::vec3(clipPos) / clipPos.w;
+    float screenX = (ndcPos.x + 1.0f) * 0.5f * width;
+    float screenY = (ndcPos.y + 1.0f) * 0.5f * height;
+    return glm::vec2(screenX, screenY);
+}
+
+void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewProj) {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    // 绘制 Target Position 的 3D 坐标轴投影
+    if (renderData.rdIkMode == ikMode::ccd) {
+        float screenW = static_cast<float>(renderData.rdVkbSwapchain.extent.width);
+        float screenH = static_cast<float>(renderData.rdVkbSwapchain.extent.height);
+
+        glm::vec3 center = renderData.rdIkTargetPos;
+        glm::vec3 axisX = center + glm::vec3(0.2f, 0.0f, 0.0f);
+        glm::vec3 axisY = center + glm::vec3(0.0f, 0.2f, 0.0f);
+        glm::vec3 axisZ = center + glm::vec3(0.0f, 0.0f, 0.2f);
+
+        glm::vec2 pCenter = projectWorldToScreen(center, viewProj, screenW, screenH);
+        glm::vec2 pX = projectWorldToScreen(axisX, viewProj, screenW, screenH);
+        glm::vec2 pY = projectWorldToScreen(axisY, viewProj, screenW, screenH);
+        glm::vec2 pZ = projectWorldToScreen(axisZ, viewProj, screenW, screenH);
+
+        if (pCenter.x >= 0.0f) {
+            ImDrawList* drawList = ImGui::GetBackgroundDrawList();
+
+            // X 轴 - 红色
+            if (pX.x >= 0.0f) {
+                drawList->AddLine(ImVec2(pCenter.x, pCenter.y), ImVec2(pX.x, pX.y), IM_COL32(255, 60, 60, 255), 3.0f);
+                drawList->AddText(ImVec2(pX.x + 5, pX.y - 5), IM_COL32(255, 60, 60, 255), "X");
+            }
+            // Y 轴 - 绿色
+            if (pY.x >= 0.0f) {
+                drawList->AddLine(ImVec2(pCenter.x, pCenter.y), ImVec2(pY.x, pY.y), IM_COL32(60, 255, 60, 255), 3.0f);
+                drawList->AddText(ImVec2(pY.x + 5, pY.y - 5), IM_COL32(60, 255, 60, 255), "Y");
+            }
+            // Z 轴 - 蓝色
+            if (pZ.x >= 0.0f) {
+                drawList->AddLine(ImVec2(pCenter.x, pCenter.y), ImVec2(pZ.x, pZ.y), IM_COL32(60, 60, 255, 255), 3.0f);
+                drawList->AddText(ImVec2(pZ.x + 5, pZ.y - 5), IM_COL32(60, 60, 255, 255), "Z");
+            }
+
+            // 中心交点绘制白点
+            drawList->AddCircleFilled(ImVec2(pCenter.x, pCenter.y), 4.0f, IM_COL32(255, 255, 255, 255));
+        }
+    }
 
     ImGuiWindowFlags imguiWindowFlags = 0;
     ImGui::SetNextWindowBgAlpha(0.8f);
@@ -255,6 +305,68 @@ void UserInterface::createFrame(VkRenderData &renderData) {
 
         if (!isAdditive) {
             ImGui::EndDisabled();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Inverse Kinematics")) {
+        ImGui::Text("IK Mode:");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Off", renderData.rdIkMode == ikMode::off)) {
+            renderData.rdIkMode = ikMode::off;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("CCD", renderData.rdIkMode == ikMode::ccd)) {
+            renderData.rdIkMode = ikMode::ccd;
+        }
+
+        ImGui::Text("Iterations");
+        ImGui::SameLine();
+        ImGui::SliderInt("##IKIterations", &renderData.rdIkIterations, 1, 50);
+
+        ImGui::Text("Target Pos");
+        ImGui::SameLine();
+        ImGui::SliderFloat3("##IKTargetPos", &renderData.rdIkTargetPos.x, -5.0f, 5.0f);
+
+        // Combo box for Effector Node
+        std::string effectorCurVal = "(invalid)";
+        if (renderData.rdIkEffectorNode >= 0 && renderData.rdIkEffectorNode < renderData.rdSkelSplitNodeNames.size()) {
+            effectorCurVal = renderData.rdSkelSplitNodeNames.at(renderData.rdIkEffectorNode);
+        }
+        ImGui::Text("Effector   ");
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("##EffectorCombo", effectorCurVal.c_str())) {
+            for (int i = 0; i < renderData.rdSkelSplitNodeNames.size(); ++i) {
+                const bool isSelected = (renderData.rdIkEffectorNode == i);
+                std::string selVal = renderData.rdSkelSplitNodeNames.at(i);
+                if (ImGui::Selectable(selVal.c_str(), isSelected)) {
+                    renderData.rdIkEffectorNode = i;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        // Combo box for Root Node
+        std::string rootCurVal = "(invalid)";
+        if (renderData.rdIkRootNode >= 0 && renderData.rdIkRootNode < renderData.rdSkelSplitNodeNames.size()) {
+            rootCurVal = renderData.rdSkelSplitNodeNames.at(renderData.rdIkRootNode);
+        }
+        ImGui::Text("IK Root    ");
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("##IKRootCombo", rootCurVal.c_str())) {
+            for (int i = 0; i < renderData.rdSkelSplitNodeNames.size(); ++i) {
+                const bool isSelected = (renderData.rdIkRootNode == i);
+                std::string selVal = renderData.rdSkelSplitNodeNames.at(i);
+                if (ImGui::Selectable(selVal.c_str(), isSelected)) {
+                    renderData.rdIkRootNode = i;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
         }
     }
 

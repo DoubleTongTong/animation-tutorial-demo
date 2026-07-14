@@ -610,6 +610,7 @@ void GltfModel::getNodes(std::shared_ptr<GltfNode> node) {
         // 递归设置子节点数据（传入当前节点的全局矩阵作为父矩阵）
         getNodeData(childNode, node->mNodeMatrix);
 
+        childNode->mParentNode = node;
         node->mChildNodes.push_back(childNode);
 
         // 递归构建子树
@@ -890,4 +891,60 @@ std::string GltfModel::getNodeName(int nodeNum) {
         return mNodeList.at(nodeNum)->getNodeName();
     }
     return "(Invalid)";
+}
+
+void GltfModel::setInverseKinematicsNodes(int effectorNodeNum, int ikChainRootNodeNum) {
+    if (effectorNodeNum < 0 || effectorNodeNum >= static_cast<int>(mNodeList.size()) ||
+        ikChainRootNodeNum < 0 || ikChainRootNodeNum >= static_cast<int>(mNodeList.size())) {
+        return;
+    }
+
+    std::vector<std::shared_ptr<GltfNode>> ikNodes{};
+    ikNodes.push_back(mNodeList.at(effectorNodeNum));
+
+    int currentNodeNum = effectorNodeNum;
+    while (currentNodeNum != ikChainRootNodeNum) {
+        std::shared_ptr<GltfNode> node = mNodeList.at(currentNodeNum);
+        if (node) {
+            std::shared_ptr<GltfNode> parentNode = node->getParentNode();
+            if (parentNode) {
+                currentNodeNum = parentNode->getNodeNum();
+                ikNodes.push_back(parentNode);
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    mIKSolver.setNodes(ikNodes);
+}
+
+void GltfModel::solveIKByCCD(glm::vec3 target) {
+    // 1. 在解算前，用当前动画帧的 TRS 更新整个骨骼的全局矩阵，防止使用上一帧的旧矩阵
+    updateNodeMatrices(mRootNode);
+
+    if (mRenderDataPtr) {
+        mIKSolver.setNumIterations(mRenderDataPtr->rdIkIterations);
+    }
+    mIKSolver.solveCCD(target);
+    updateNodeMatrices(mIKSolver.getIkChainRootNode());
+}
+
+void GltfModel::updateNodeMatrices(std::shared_ptr<GltfNode> node) {
+    if (!node) return;
+
+    node->calculateNodeMatrix();
+
+    if (node->mNodeIndex >= 0 && node->mNodeIndex < static_cast<int>(mNodeToJoint.size())) {
+        int jointIdx = mNodeToJoint[node->mNodeIndex];
+        if (jointIdx != -1) {
+            mJointMatrices[jointIdx] = node->mNodeMatrix * mInverseBindMatrices[jointIdx];
+        }
+    }
+
+    for (const auto& child : node->mChildNodes) {
+        updateNodeMatrices(child);
+    }
 }

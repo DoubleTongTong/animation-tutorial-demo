@@ -10,6 +10,7 @@
 
 #include "GltfNode.h"
 #include "GltfAnimationClip.h"
+#include "IKSolver.h"
 
 // 顶点结构体，与我们的图形管线着色器输入布局完全一致 (location=0,1,2)
 struct Vertex {
@@ -53,6 +54,10 @@ public:
 
     void setSkeletonSplitNode(int nodeNum);
     std::string getNodeName(int nodeNum);
+
+    void setInverseKinematicsNodes(int effectorNodeNum, int ikChainRootNodeNum);
+    void solveIKByCCD(glm::vec3 target);
+    void updateNodeMatrices(std::shared_ptr<GltfNode> node);
 
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }
@@ -134,4 +139,6 @@ private:
     std::vector<bool> mAdditiveAnimationMask{};
     std::vector<bool> mInvertedAdditiveAnimationMask{};
     void updateAdditiveMask(std::shared_ptr<GltfNode> treeNode, int splitNodeNum);
+
+    IKSolver mIKSolver{};
 };

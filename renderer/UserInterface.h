@@ -2,11 +2,12 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include "VkRenderData.h"
+#include <glm/glm.hpp>
 
 class UserInterface {
 public:
     void init(VkRenderData &renderData, GLFWwindow* window);
-    void createFrame(VkRenderData &renderData);
+    void createFrame(VkRenderData &renderData, const glm::mat4& viewProj = glm::mat4(1.0f));
     void render(VkCommandBuffer commandBuffer);
     void cleanup(VkRenderData &renderData);
 

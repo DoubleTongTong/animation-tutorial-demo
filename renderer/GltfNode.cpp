@@ -1,6 +1,8 @@
+#define GLM_ENABLE_EXPERIMENTAL
 #include "GltfNode.h"
 #include "Logger.h"
 #include <algorithm>
+#include <glm/gtx/matrix_decompose.hpp>
 
 std::shared_ptr<GltfNode> GltfNode::createRoot(int nodeIndex) {
     auto node = std::make_shared<GltfNode>();
@@ -46,4 +48,61 @@ void GltfNode::printTree(int indent) {
     if (indent == 0) {
         Logger::log(1, "printTree: -- end tree --\n");
     }
+}
+
+std::shared_ptr<GltfNode> GltfNode::getParentNode() {
+    std::shared_ptr<GltfNode> pNode = mParentNode.lock();
+    if (pNode) {
+        return pNode;
+    }
+    return nullptr;
+}
+
+glm::quat GltfNode::getLocalRotation() {
+    return mBlendRotation;
+}
+
+glm::quat GltfNode::getGlobalRotation() {
+    glm::quat orientation;
+    glm::vec3 scale;
+    glm::vec3 translation;
+    glm::vec3 skew;
+    glm::vec4 perspective;
+
+    if (!glm::decompose(mNodeMatrix, scale, orientation, translation, skew, perspective)) {
+        return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    }
+    return glm::inverse(orientation);
+}
+
+glm::vec3 GltfNode::getGlobalPosition() {
+    glm::quat orientation;
+    glm::vec3 scale;
+    glm::vec3 translation;
+    glm::vec3 skew;
+    glm::vec4 perspective;
+
+    if (!glm::decompose(mNodeMatrix, scale, orientation, translation, skew, perspective)) {
+        return glm::vec3(0.0f, 0.0f, 0.0f);
+    }
+    return translation;
+}
+
+void GltfNode::updateNodeAndChildMatrices() {
+    calculateNodeMatrix();
+    for (auto &node : mChildNodes) {
+        if (node) {
+            node->updateNodeAndChildMatrices();
+        }
+    }
+}
+
+void GltfNode::calculateNodeMatrix() {
+    calculateLocalTRSMatrix();
+    glm::mat4 parentNodeMatrix = glm::mat4(1.0f);
+    std::shared_ptr<GltfNode> pNode = mParentNode.lock();
+    if (pNode) {
+        parentNodeMatrix = pNode->mNodeMatrix;
+    }
+    mNodeMatrix = parentNodeMatrix * mLocalTRSMatrix;
 }

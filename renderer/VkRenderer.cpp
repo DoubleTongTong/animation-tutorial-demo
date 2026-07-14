@@ -63,6 +63,8 @@ bool VkRenderer::init() {
     // 将界面显示的三角形数量更新为 glTF 模型的实际三角形数
     mRenderData.rdTriangleCount = mGltfModel->getTriangleCount();
     mRenderData.rdAnimClipSize = mGltfModel->getClipSize();
+    mRenderData.rdSkelSplitNode = mRenderData.rdModelNodeCount - 1;
+    mRenderData.rdSkelSplitNodeName = mGltfModel->getNodeName(mRenderData.rdSkelSplitNode);
 
     if (!mFramebuffer.init(mRenderData)) {
         return false;
@@ -456,6 +458,26 @@ bool VkRenderer::draw() {
     static bool blendingChanged = mRenderData.rdCrossBlending;
     if (blendingChanged != mRenderData.rdCrossBlending) {
         blendingChanged = mRenderData.rdCrossBlending;
+        if (!mRenderData.rdCrossBlending) {
+            mRenderData.rdAdditiveBlending = false;
+        }
+        mGltfModel->resetNodeData();
+    }
+
+    static bool additiveBlendingChanged = mRenderData.rdAdditiveBlending;
+    if (additiveBlendingChanged != mRenderData.rdAdditiveBlending) {
+        additiveBlendingChanged = mRenderData.rdAdditiveBlending;
+        if (!mRenderData.rdAdditiveBlending) {
+            mRenderData.rdSkelSplitNode = mRenderData.rdModelNodeCount - 1;
+        }
+        mGltfModel->resetNodeData();
+    }
+
+    static int skelSplitNode = mRenderData.rdSkelSplitNode;
+    if (skelSplitNode != mRenderData.rdSkelSplitNode) {
+        mGltfModel->setSkeletonSplitNode(mRenderData.rdSkelSplitNode);
+        skelSplitNode = mRenderData.rdSkelSplitNode;
+        mRenderData.rdSkelSplitNodeName = mGltfModel->getNodeName(mRenderData.rdSkelSplitNode);
         mGltfModel->resetNodeData();
     }
 

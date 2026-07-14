@@ -51,6 +51,9 @@ public:
     void crossBlendAnimationFrame(int sourceAnimNumber, int destAnimNumber, float time, float blendFactor);
     void resetNodeData();
 
+    void setSkeletonSplitNode(int nodeNum);
+    std::string getNodeName(int nodeNum);
+
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }
 
@@ -127,4 +130,8 @@ private:
 
     void getAnimations();
     void buildNodeList(std::shared_ptr<GltfNode> node);
+
+    std::vector<bool> mAdditiveAnimationMask{};
+    std::vector<bool> mInvertedAdditiveAnimationMask{};
+    void updateAdditiveMask(std::shared_ptr<GltfNode> treeNode, int splitNodeNum);
 };

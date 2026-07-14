@@ -17,11 +17,13 @@ public:
 
     void blendAnimationFrame(
         std::vector<std::shared_ptr<GltfNode>>& nodes,
+        const std::vector<bool>& additiveMask,
         float time,
         float blendFactor);
 
     void setAnimationFrame(
         std::vector<std::shared_ptr<GltfNode>>& nodes,
+        const std::vector<bool>& additiveMask,
         float time);
 
     float getClipEndTime();

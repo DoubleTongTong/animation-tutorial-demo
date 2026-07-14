@@ -14,11 +14,15 @@ void GltfAnimationClip::addChannel(
 
 void GltfAnimationClip::blendAnimationFrame(
     std::vector<std::shared_ptr<GltfNode>>& nodes,
+    const std::vector<bool>& additiveMask,
     float time,
     float blendFactor) {
     for (auto &channel : mAnimationChannels) {
         int targetNode = channel->getTargetNode();
         if (targetNode < 0 || targetNode >= static_cast<int>(nodes.size()) || !nodes[targetNode]) {
+            continue;
+        }
+        if (targetNode < static_cast<int>(additiveMask.size()) && !additiveMask[targetNode]) {
             continue;
         }
 
@@ -44,10 +48,14 @@ void GltfAnimationClip::blendAnimationFrame(
 
 void GltfAnimationClip::setAnimationFrame(
     std::vector<std::shared_ptr<GltfNode>>& nodes,
+    const std::vector<bool>& additiveMask,
     float time) {
     for (auto &channel : mAnimationChannels) {
         int targetNode = channel->getTargetNode();
         if (targetNode < 0 || targetNode >= static_cast<int>(nodes.size()) || !nodes[targetNode]) {
+            continue;
+        }
+        if (targetNode < static_cast<int>(additiveMask.size()) && !additiveMask[targetNode]) {
             continue;
         }
 

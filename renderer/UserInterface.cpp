@@ -144,7 +144,11 @@ void UserInterface::createFrame(VkRenderData &renderData) {
     }
 
     if (ImGui::CollapsingHeader("glTF Animation Blending")) {
-        ImGui::Checkbox("Blending Type:", &renderData.rdCrossBlending);
+        if (ImGui::Checkbox("Blending Type:", &renderData.rdCrossBlending)) {
+            if (!renderData.rdCrossBlending) {
+                renderData.rdAdditiveBlending = false;
+            }
+        }
         ImGui::SameLine();
         if (renderData.rdCrossBlending) {
             ImGui::Text("Cross");
@@ -176,6 +180,25 @@ void UserInterface::createFrame(VkRenderData &renderData) {
         ImGui::SameLine();
         ImGui::SliderFloat("##CrossBlendFactor", &renderData.rdAnimCrossBlendFactor, 0.0f, 1.0f);
         if (!renderData.rdCrossBlending) {
+            ImGui::EndDisabled();
+        }
+
+        ImGui::Separator();
+        if (ImGui::Checkbox("Additive Blending", &renderData.rdAdditiveBlending)) {
+            if (renderData.rdAdditiveBlending) {
+                renderData.rdCrossBlending = true;
+            }
+        }
+
+        if (!renderData.rdAdditiveBlending) {
+            ImGui::BeginDisabled();
+        }
+        ImGui::Text("Split Node  ");
+        ImGui::SameLine();
+        ImGui::SliderInt("##SplitNode", &renderData.rdSkelSplitNode, 0, renderData.rdModelNodeCount - 1);
+
+        ImGui::Text("Split Node Name: %s", renderData.rdSkelSplitNodeName.c_str());
+        if (!renderData.rdAdditiveBlending) {
             ImGui::EndDisabled();
         }
     }

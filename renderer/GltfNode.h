@@ -29,6 +29,9 @@ public:
     void calculateLocalTRSMatrix();
     void printTree(int indent = 0);
 
+    std::string getNodeName() { return mName; }
+    int getNodeNum() { return mNodeIndex; }
+
     void setScale(const glm::vec3& scale) {
         mScale = scale;
         mBlendScale = scale;

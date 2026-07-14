@@ -68,4 +68,9 @@ struct VkRenderData {
     int rdCrossBlendDestAnimClip = 0;
     std::string rdCrossBlendDestClipName = "None";
     float rdAnimCrossBlendFactor = 0.0f;
+
+    int rdModelNodeCount = 0;
+    bool rdAdditiveBlending = false;
+    int rdSkelSplitNode = 0;
+    std::string rdSkelSplitNodeName = "None";
 };

@@ -109,16 +109,38 @@ void UserInterface::createFrame(VkRenderData &renderData) {
     ImGui::SliderInt("##FOV", &renderData.rdFieldOfView, 40, 150);
 
     ImGui::Separator();
-    ImGui::Checkbox("Use Dual Quaternion Skinning", &renderData.rdGPUDualQuatVertexSkinning);
+    ImGui::Text("Vertex Skinning:");
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Linear", renderData.rdGPUDualQuatVertexSkinning == skinningMode::linear)) {
+        renderData.rdGPUDualQuatVertexSkinning = skinningMode::linear;
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Dual Quaternion", renderData.rdGPUDualQuatVertexSkinning == skinningMode::dualQuat)) {
+        renderData.rdGPUDualQuatVertexSkinning = skinningMode::dualQuat;
+    }
 
     ImGui::Separator();
     if (ImGui::CollapsingHeader("glTF Animation")) {
-        ImGui::Text("Clip No");
-        ImGui::SameLine();
-        int maxClipIdx = renderData.rdAnimClipSize > 0 ? renderData.rdAnimClipSize - 1 : 0;
-        ImGui::SliderInt("##Clip", &renderData.rdAnimClip, 0, maxClipIdx);
+        std::string curVal = "None";
+        if (renderData.rdAnimClip >= 0 && renderData.rdAnimClip < renderData.rdClipNames.size()) {
+            curVal = renderData.rdClipNames.at(renderData.rdAnimClip);
+        }
 
-        ImGui::Text("Clip Name: %s", renderData.rdClipName.c_str());
+        ImGui::Text("Clip Combo");
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("##ClipCombo", curVal.c_str())) {
+            for (int i = 0; i < renderData.rdClipNames.size(); ++i) {
+                const bool isSelected = (renderData.rdAnimClip == i);
+                std::string selVal = renderData.rdClipNames.at(i);
+                if (ImGui::Selectable(selVal.c_str(), isSelected)) {
+                    renderData.rdAnimClip = i;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
 
         ImGui::Checkbox("Play Animation", &renderData.rdPlayAnimation);
 
@@ -144,61 +166,94 @@ void UserInterface::createFrame(VkRenderData &renderData) {
     }
 
     if (ImGui::CollapsingHeader("glTF Animation Blending")) {
-        if (ImGui::Checkbox("Blending Type:", &renderData.rdCrossBlending)) {
-            if (!renderData.rdCrossBlending) {
-                renderData.rdAdditiveBlending = false;
-            }
+        ImGui::Text("Blend Mode:");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Fade In/Out", renderData.rdBlendingMode == blendMode::fadeinout)) {
+            renderData.rdBlendingMode = blendMode::fadeinout;
         }
         ImGui::SameLine();
-        if (renderData.rdCrossBlending) {
-            ImGui::Text("Cross");
-        } else {
-            ImGui::Text("Single");
+        if (ImGui::RadioButton("Crossfade", renderData.rdBlendingMode == blendMode::crossfade)) {
+            renderData.rdBlendingMode = blendMode::crossfade;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Additive", renderData.rdBlendingMode == blendMode::additive)) {
+            renderData.rdBlendingMode = blendMode::additive;
         }
 
-        if (renderData.rdCrossBlending) {
+        bool isSingle = (renderData.rdBlendingMode == blendMode::fadeinout);
+
+        if (!isSingle) {
             ImGui::BeginDisabled();
         }
         ImGui::Text("Blend Factor");
         ImGui::SameLine();
         ImGui::SliderFloat("##BlendFactor", &renderData.rdAnimBlendFactor, 0.0f, 1.0f);
-        if (renderData.rdCrossBlending) {
+        if (!isSingle) {
             ImGui::EndDisabled();
         }
 
-        if (!renderData.rdCrossBlending) {
+        if (isSingle) {
             ImGui::BeginDisabled();
         }
+
+        std::string destCurVal = "None";
+        if (renderData.rdCrossBlendDestAnimClip >= 0 && renderData.rdCrossBlendDestAnimClip < renderData.rdClipNames.size()) {
+            destCurVal = renderData.rdClipNames.at(renderData.rdCrossBlendDestAnimClip);
+        }
+
         ImGui::Text("Dest Clip   ");
         ImGui::SameLine();
-        int maxClipIdx = renderData.rdAnimClipSize > 0 ? renderData.rdAnimClipSize - 1 : 0;
-        ImGui::SliderInt("##DestClip", &renderData.rdCrossBlendDestAnimClip, 0, maxClipIdx);
-
-        ImGui::Text("Dest Clip Name: %s", renderData.rdCrossBlendDestClipName.c_str());
+        if (ImGui::BeginCombo("##DestClipCombo", destCurVal.c_str())) {
+            for (int i = 0; i < renderData.rdClipNames.size(); ++i) {
+                const bool isSelected = (renderData.rdCrossBlendDestAnimClip == i);
+                std::string selVal = renderData.rdClipNames.at(i);
+                if (ImGui::Selectable(selVal.c_str(), isSelected)) {
+                    renderData.rdCrossBlendDestAnimClip = i;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
 
         ImGui::Text("Cross Blend ");
         ImGui::SameLine();
         ImGui::SliderFloat("##CrossBlendFactor", &renderData.rdAnimCrossBlendFactor, 0.0f, 1.0f);
-        if (!renderData.rdCrossBlending) {
+
+        if (isSingle) {
             ImGui::EndDisabled();
         }
 
         ImGui::Separator();
-        if (ImGui::Checkbox("Additive Blending", &renderData.rdAdditiveBlending)) {
-            if (renderData.rdAdditiveBlending) {
-                renderData.rdCrossBlending = true;
-            }
-        }
 
-        if (!renderData.rdAdditiveBlending) {
+        bool isAdditive = (renderData.rdBlendingMode == blendMode::additive);
+        if (!isAdditive) {
             ImGui::BeginDisabled();
         }
+
+        std::string splitNodeCurVal = "(invalid)";
+        if (renderData.rdSkelSplitNode >= 0 && renderData.rdSkelSplitNode < renderData.rdSkelSplitNodeNames.size()) {
+            splitNodeCurVal = renderData.rdSkelSplitNodeNames.at(renderData.rdSkelSplitNode);
+        }
+
         ImGui::Text("Split Node  ");
         ImGui::SameLine();
-        ImGui::SliderInt("##SplitNode", &renderData.rdSkelSplitNode, 0, renderData.rdModelNodeCount - 1);
+        if (ImGui::BeginCombo("##SplitNodeCombo", splitNodeCurVal.c_str())) {
+            for (int i = 0; i < renderData.rdSkelSplitNodeNames.size(); ++i) {
+                const bool isSelected = (renderData.rdSkelSplitNode == i);
+                std::string selVal = renderData.rdSkelSplitNodeNames.at(i);
+                if (ImGui::Selectable(selVal.c_str(), isSelected)) {
+                    renderData.rdSkelSplitNode = i;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
 
-        ImGui::Text("Split Node Name: %s", renderData.rdSkelSplitNodeName.c_str());
-        if (!renderData.rdAdditiveBlending) {
+        if (!isAdditive) {
             ImGui::EndDisabled();
         }
     }

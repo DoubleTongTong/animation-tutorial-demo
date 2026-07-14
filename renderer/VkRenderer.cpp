@@ -64,7 +64,6 @@ bool VkRenderer::init() {
     mRenderData.rdTriangleCount = mGltfModel->getTriangleCount();
     mRenderData.rdAnimClipSize = mGltfModel->getClipSize();
     mRenderData.rdSkelSplitNode = mRenderData.rdModelNodeCount - 1;
-    mRenderData.rdSkelSplitNodeName = mGltfModel->getNodeName(mRenderData.rdSkelSplitNode);
 
     if (!mFramebuffer.init(mRenderData)) {
         return false;
@@ -424,7 +423,7 @@ bool VkRenderer::draw() {
 
     vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    bool useDQS = mRenderData.rdGPUDualQuatVertexSkinning;
+    bool useDQS = (mRenderData.rdGPUDualQuatVertexSkinning == skinningMode::dualQuat);
 
     VkPipeline activePipeline = useDQS
         ? mRenderData.rdPipelineDQS
@@ -452,24 +451,13 @@ bool VkRenderer::draw() {
     // Calculate 3D MVP matrix and push constants using GLM
     float time = static_cast<float>(glfwGetTime());
     
-    mRenderData.rdClipName = mGltfModel->getClipName(mRenderData.rdAnimClip);
-    mRenderData.rdCrossBlendDestClipName = mGltfModel->getClipName(mRenderData.rdCrossBlendDestAnimClip);
-
-    static bool blendingChanged = mRenderData.rdCrossBlending;
-    if (blendingChanged != mRenderData.rdCrossBlending) {
-        blendingChanged = mRenderData.rdCrossBlending;
-        if (!mRenderData.rdCrossBlending) {
-            mRenderData.rdAdditiveBlending = false;
-        }
-        mGltfModel->resetNodeData();
-    }
-
-    static bool additiveBlendingChanged = mRenderData.rdAdditiveBlending;
-    if (additiveBlendingChanged != mRenderData.rdAdditiveBlending) {
-        additiveBlendingChanged = mRenderData.rdAdditiveBlending;
-        if (!mRenderData.rdAdditiveBlending) {
+    static blendMode lastBlendMode = mRenderData.rdBlendingMode;
+    if (lastBlendMode != mRenderData.rdBlendingMode) {
+        lastBlendMode = mRenderData.rdBlendingMode;
+        if (mRenderData.rdBlendingMode != blendMode::additive) {
             mRenderData.rdSkelSplitNode = mRenderData.rdModelNodeCount - 1;
         }
+        mGltfModel->setSkeletonSplitNode(mRenderData.rdSkelSplitNode);
         mGltfModel->resetNodeData();
     }
 
@@ -477,19 +465,20 @@ bool VkRenderer::draw() {
     if (skelSplitNode != mRenderData.rdSkelSplitNode) {
         mGltfModel->setSkeletonSplitNode(mRenderData.rdSkelSplitNode);
         skelSplitNode = mRenderData.rdSkelSplitNode;
-        mRenderData.rdSkelSplitNodeName = mGltfModel->getNodeName(mRenderData.rdSkelSplitNode);
         mGltfModel->resetNodeData();
     }
 
+    bool useCrossBlending = (mRenderData.rdBlendingMode == blendMode::crossfade || mRenderData.rdBlendingMode == blendMode::additive);
+
     if (mRenderData.rdPlayAnimation) {
-        if (mRenderData.rdCrossBlending) {
+        if (useCrossBlending) {
             mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdCrossBlendDestAnimClip, mRenderData.rdAnimSpeed, mRenderData.rdAnimCrossBlendFactor);
         } else {
             mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdAnimSpeed, mRenderData.rdAnimBlendFactor);
         }
     } else {
         mRenderData.rdAnimEndTime = mGltfModel->getAnimationEndTime(mRenderData.rdAnimClip);
-        if (mRenderData.rdCrossBlending) {
+        if (useCrossBlending) {
             mGltfModel->crossBlendAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdCrossBlendDestAnimClip, mRenderData.rdAnimTimePosition, mRenderData.rdAnimCrossBlendFactor);
         } else {
             mGltfModel->blendAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdAnimTimePosition, mRenderData.rdAnimBlendFactor);
@@ -497,7 +486,7 @@ bool VkRenderer::draw() {
     }
 
     // 更新 GPU 蒙皮缓冲区数据 (DQS / LBS)
-    if (mRenderData.rdGPUDualQuatVertexSkinning) {
+    if (mRenderData.rdGPUDualQuatVertexSkinning == skinningMode::dualQuat) {
         mGltfModel->applyVertexSkinningDQS(time);
     } else {
         mGltfModel->applyVertexSkinningLBS(time);

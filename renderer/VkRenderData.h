@@ -8,6 +8,17 @@
 
 
 
+enum class skinningMode {
+    linear = 0,
+    dualQuat
+};
+
+enum class blendMode {
+    fadeinout = 0,
+    crossfade,
+    additive
+};
+
 struct VkRenderData {
     VmaAllocator rdAllocator = VK_NULL_HANDLE;
     vkb::Instance rdVkbInstance{};
@@ -42,7 +53,7 @@ struct VkRenderData {
     VkImageView rdDepthImageView = VK_NULL_HANDLE;
 
     // ImGui specific dynamic data
-    bool rdGPUDualQuatVertexSkinning = false;
+    skinningMode rdGPUDualQuatVertexSkinning = skinningMode::linear;
     uint32_t rdTriangleCount = 0;
     float rdFrameTime = 0.0f;
     int rdFieldOfView = 90;
@@ -56,7 +67,7 @@ struct VkRenderData {
 
     // Animation control variables
     bool rdPlayAnimation = true;
-    std::string rdClipName = "None";
+    std::vector<std::string> rdClipNames{};
     int rdAnimClip = 0;
     int rdAnimClipSize = 0;
     float rdAnimSpeed = 1.0f;
@@ -64,13 +75,11 @@ struct VkRenderData {
     float rdAnimEndTime = 0.0f;
     float rdAnimBlendFactor = 1.0f;
 
-    bool rdCrossBlending = false;
+    blendMode rdBlendingMode = blendMode::fadeinout;
     int rdCrossBlendDestAnimClip = 0;
-    std::string rdCrossBlendDestClipName = "None";
     float rdAnimCrossBlendFactor = 0.0f;
 
     int rdModelNodeCount = 0;
-    bool rdAdditiveBlending = false;
     int rdSkelSplitNode = 0;
-    std::string rdSkelSplitNodeName = "None";
+    std::vector<std::string> rdSkelSplitNodeNames{};
 };

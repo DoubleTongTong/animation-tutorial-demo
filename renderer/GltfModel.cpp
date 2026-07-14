@@ -288,6 +288,20 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
     mInvertedAdditiveAnimationMask = mAdditiveAnimationMask;
     mInvertedAdditiveAnimationMask.flip();
 
+    renderData.rdClipNames.clear();
+    for (auto &clip : mAnimClips) {
+        renderData.rdClipNames.push_back(clip.getClipName());
+    }
+
+    renderData.rdSkelSplitNodeNames.clear();
+    for (const auto &node : mNodeList) {
+        if (node) {
+            renderData.rdSkelSplitNodeNames.push_back(node->getNodeName());
+        } else {
+            renderData.rdSkelSplitNodeNames.push_back("(invalid)");
+        }
+    }
+
     return true;
 }
 

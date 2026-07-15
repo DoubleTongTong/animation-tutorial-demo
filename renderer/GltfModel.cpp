@@ -932,6 +932,16 @@ void GltfModel::solveIKByCCD(glm::vec3 target) {
     updateNodeMatrices(mIKSolver.getIkChainRootNode());
 }
 
+void GltfModel::solveIKByFABRIK(glm::vec3 target) {
+    updateNodeMatrices(mRootNode);
+
+    if (mRenderDataPtr) {
+        mIKSolver.setNumIterations(mRenderDataPtr->rdIkIterations);
+    }
+    mIKSolver.solveFABRIK(target);
+    updateNodeMatrices(mIKSolver.getIkChainRootNode());
+}
+
 void GltfModel::updateNodeMatrices(std::shared_ptr<GltfNode> node) {
     if (!node) return;
 

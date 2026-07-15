@@ -57,6 +57,7 @@ public:
 
     void setInverseKinematicsNodes(int effectorNodeNum, int ikChainRootNodeNum);
     void solveIKByCCD(glm::vec3 target);
+    void solveIKByFABRIK(glm::vec3 target);
     void updateNodeMatrices(std::shared_ptr<GltfNode> node);
 
     // 获取模型的三角形总数

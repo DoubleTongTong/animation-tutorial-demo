@@ -499,9 +499,13 @@ bool VkRenderer::draw() {
         }
     }
 
-    if (mRenderData.rdIkMode == ikMode::ccd) {
+    if (mRenderData.rdIkMode != ikMode::off) {
         mGltfModel->setInverseKinematicsNodes(mRenderData.rdIkEffectorNode, mRenderData.rdIkRootNode);
-        mGltfModel->solveIKByCCD(mRenderData.rdIkTargetPos);
+        if (mRenderData.rdIkMode == ikMode::ccd) {
+            mGltfModel->solveIKByCCD(mRenderData.rdIkTargetPos);
+        } else if (mRenderData.rdIkMode == ikMode::fabrik) {
+            mGltfModel->solveIKByFABRIK(mRenderData.rdIkTargetPos);
+        }
     }
 
     // 更新 GPU 蒙皮缓冲区数据 (DQS / LBS)

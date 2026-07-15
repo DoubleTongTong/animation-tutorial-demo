@@ -90,7 +90,7 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
     ImGui::NewFrame();
 
     // 绘制 Target Position 的 3D 坐标轴投影
-    if (renderData.rdIkMode == ikMode::ccd) {
+    if (renderData.rdIkMode != ikMode::off) {
         float screenW = static_cast<float>(renderData.rdVkbSwapchain.extent.width);
         float screenH = static_cast<float>(renderData.rdVkbSwapchain.extent.height);
 
@@ -317,6 +317,10 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
         ImGui::SameLine();
         if (ImGui::RadioButton("CCD", renderData.rdIkMode == ikMode::ccd)) {
             renderData.rdIkMode = ikMode::ccd;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("FABRIK", renderData.rdIkMode == ikMode::fabrik)) {
+            renderData.rdIkMode = ikMode::fabrik;
         }
 
         ImGui::Text("Iterations");

@@ -60,10 +60,18 @@ bool VkRenderer::init() {
         return false;
     }
 
-    // 将界面显示的三角形数量更新为 glTF 模型的实际三角形数
-    mRenderData.rdTriangleCount = mGltfModel->getTriangleCount();
-    mRenderData.rdAnimClipSize = mGltfModel->getClipSize();
-    mRenderData.rdSkelSplitNode = mRenderData.rdModelNodeCount - 1;
+    // 实例化 200 个模型
+    std::srand(static_cast<unsigned int>(time(nullptr)));
+    int numTriangles = 0;
+    for (int i = 0; i < 200; ++i) {
+        int xPos = std::rand() % 40 - 20;
+        int zPos = std::rand() % 40 - 20;
+        mGltfInstances.emplace_back(std::make_shared<GltfInstance>(mGltfModel, glm::vec2(static_cast<float>(xPos), static_cast<float>(zPos)), true));
+        numTriangles += mGltfModel->getTriangleCount();
+    }
+    mRenderData.rdTriangleCount = numTriangles;
+    mRenderData.rdNumberOfInstances = static_cast<int>(mGltfInstances.size());
+    mRenderData.rdCurrentSelectedInstance = 0;
 
     if (!mFramebuffer.init(mRenderData)) {
         return false;
@@ -423,97 +431,40 @@ bool VkRenderer::draw() {
 
     vkCmdBeginRenderPass(commandBuffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    bool useDQS = (mRenderData.rdGPUDualQuatVertexSkinning == skinningMode::dualQuat);
+    for (auto &instance : mGltfInstances) {
+        instance->checkForUpdates();
+        instance->updateAnimation();
+    }
 
-    VkPipeline activePipeline = useDQS
-        ? mRenderData.rdPipelineDQS
-        : mRenderData.rdPipeline;
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline);
+    std::vector<glm::mat4> allJointMatrices{};
+    std::vector<glm::mat2x4> allJointDualQuats{};
+    size_t jointCount = mGltfModel->getInverseBindMatrices().size();
+    
+    allJointMatrices.resize(mGltfInstances.size() * jointCount, glm::mat4(1.0f));
+    allJointDualQuats.resize(mGltfInstances.size() * jointCount, glm::mat2x4(0.0f));
 
-    // mMesh.bind(commandBuffer); // 注释掉原先的静态 cube 网格绑定
+    int currentTriangles = 0;
+    for (size_t i = 0; i < mGltfInstances.size(); ++i) {
+        auto &instance = mGltfInstances[i];
+        ModelSettings settings = instance->getInstanceSettings();
+        if (settings.msDrawModel) {
+            currentTriangles += mGltfModel->getTriangleCount();
+        }
+        const auto &joints = instance->getJointMatrices();
+        const auto &dqs = instance->getJointDualQuats();
+        if (!joints.empty()) {
+            std::memcpy(&allJointMatrices[i * jointCount], joints.data(), joints.size() * sizeof(glm::mat4));
+        }
+        if (!dqs.empty()) {
+            std::memcpy(&allJointDualQuats[i * jointCount], dqs.data(), dqs.size() * sizeof(glm::mat2x4));
+        }
+    }
+    mRenderData.rdTriangleCount = currentTriangles;
 
-    VkDescriptorSet activeJointSet = useDQS
-        ? mGltfModel->getJointDescriptorSetDQS()
-        : mGltfModel->getJointDescriptorSetLBS();
-
-    VkDescriptorSet descriptorSets[] = {
-        mGltfModel->getTextureDescriptorSet(),
-        activeJointSet
-    };
-    vkCmdBindDescriptorSets(commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        mRenderData.rdPipelineLayout, 0, 2,
-        descriptorSets, 0, nullptr);
+    mGltfModel->updateGPUJointBuffers(mRenderData, allJointMatrices, allJointDualQuats);
 
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-    // Calculate 3D MVP matrix and push constants using GLM
-    float time = static_cast<float>(glfwGetTime());
-    
-    static blendMode lastBlendMode = mRenderData.rdBlendingMode;
-    if (lastBlendMode != mRenderData.rdBlendingMode) {
-        lastBlendMode = mRenderData.rdBlendingMode;
-        if (mRenderData.rdBlendingMode != blendMode::additive) {
-            mRenderData.rdSkelSplitNode = mRenderData.rdModelNodeCount - 1;
-        }
-        mGltfModel->setSkeletonSplitNode(mRenderData.rdSkelSplitNode);
-        mGltfModel->resetNodeData();
-    }
-
-    static int skelSplitNode = mRenderData.rdSkelSplitNode;
-    if (skelSplitNode != mRenderData.rdSkelSplitNode) {
-        mGltfModel->setSkeletonSplitNode(mRenderData.rdSkelSplitNode);
-        skelSplitNode = mRenderData.rdSkelSplitNode;
-        mGltfModel->resetNodeData();
-    }
-
-    static ikMode lastIkMode = mRenderData.rdIkMode;
-    if (lastIkMode != mRenderData.rdIkMode) {
-        lastIkMode = mRenderData.rdIkMode;
-        mGltfModel->resetNodeData();
-    }
-
-    static int lastEffector = mRenderData.rdIkEffectorNode;
-    static int lastIkRoot = mRenderData.rdIkRootNode;
-    if (lastEffector != mRenderData.rdIkEffectorNode || lastIkRoot != mRenderData.rdIkRootNode) {
-        lastEffector = mRenderData.rdIkEffectorNode;
-        lastIkRoot = mRenderData.rdIkRootNode;
-        mGltfModel->resetNodeData();
-    }
-
-    bool useCrossBlending = (mRenderData.rdBlendingMode == blendMode::crossfade || mRenderData.rdBlendingMode == blendMode::additive);
-
-    if (mRenderData.rdPlayAnimation) {
-        if (useCrossBlending) {
-            mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdCrossBlendDestAnimClip, mRenderData.rdAnimSpeed, mRenderData.rdAnimCrossBlendFactor);
-        } else {
-            mGltfModel->playAnimation(mRenderData.rdAnimClip, mRenderData.rdAnimSpeed, mRenderData.rdAnimBlendFactor);
-        }
-    } else {
-        mRenderData.rdAnimEndTime = mGltfModel->getAnimationEndTime(mRenderData.rdAnimClip);
-        if (useCrossBlending) {
-            mGltfModel->crossBlendAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdCrossBlendDestAnimClip, mRenderData.rdAnimTimePosition, mRenderData.rdAnimCrossBlendFactor);
-        } else {
-            mGltfModel->blendAnimationFrame(mRenderData.rdAnimClip, mRenderData.rdAnimTimePosition, mRenderData.rdAnimBlendFactor);
-        }
-    }
-
-    if (mRenderData.rdIkMode != ikMode::off) {
-        mGltfModel->setInverseKinematicsNodes(mRenderData.rdIkEffectorNode, mRenderData.rdIkRootNode);
-        if (mRenderData.rdIkMode == ikMode::ccd) {
-            mGltfModel->solveIKByCCD(mRenderData.rdIkTargetPos);
-        } else if (mRenderData.rdIkMode == ikMode::fabrik) {
-            mGltfModel->solveIKByFABRIK(mRenderData.rdIkTargetPos);
-        }
-    }
-
-    // 更新 GPU 蒙皮缓冲区数据 (DQS / LBS)
-    if (mRenderData.rdGPUDualQuatVertexSkinning == skinningMode::dualQuat) {
-        mGltfModel->applyVertexSkinningDQS(time);
-    } else {
-        mGltfModel->applyVertexSkinningLBS(time);
-    }
 
     float width = static_cast<float>(mRenderData.rdVkbSwapchain.extent.width);
     float height = static_cast<float>(mRenderData.rdVkbSwapchain.extent.height);
@@ -525,27 +476,46 @@ bool VkRenderer::draw() {
     glm::mat4 view = mCamera.getViewMatrix(mRenderData);
     glm::mat4 viewProj = proj * view;
 
-    // 创建 ImGui 界面帧，并传入 viewProj 矩阵绘制投影坐标轴
-    mUserInterface.createFrame(mRenderData, viewProj);
+    ModelSettings selectedSettings = mGltfInstances.at(mRenderData.rdCurrentSelectedInstance)->getInstanceSettings();
+    mUserInterface.createFrame(mRenderData, selectedSettings, viewProj);
+    mGltfInstances.at(mRenderData.rdCurrentSelectedInstance)->setInstanceSettings(selectedSettings);
 
-    glm::mat4 model = glm::mat4(1.0f);
-    // 注释掉旋转，使模型保持静止
-    // model = glm::rotate(model, time * 0.5f, glm::vec3(1.0f, 0.0f, 0.0f));
-    // model = glm::rotate(model, time * 0.8f, glm::vec3(0.0f, 1.0f, 0.0f));
-    
-    glm::mat4 mvp = proj * view * model;
+    for (size_t i = 0; i < mGltfInstances.size(); ++i) {
+        auto &instance = mGltfInstances[i];
+        ModelSettings settings = instance->getInstanceSettings();
+        if (!settings.msDrawModel) {
+            continue;
+        }
 
-    vkCmdPushConstants(
-        commandBuffer,
-        mRenderData.rdPipelineLayout,
-        VK_SHADER_STAGE_VERTEX_BIT,
-        0,
-        sizeof(mvp),
-        glm::value_ptr(mvp)
-    );
+        bool useDQS = (settings.msVertexSkinningMode == skinningMode::dualQuat);
+        VkPipeline activePipeline = useDQS ? mRenderData.rdPipelineDQS : mRenderData.rdPipeline;
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline);
 
-    // 绘制加载的 glTF 模型
-    mGltfModel->draw(commandBuffer);
+        VkDescriptorSet activeJointSet = useDQS ? mGltfModel->getJointDescriptorSetDQS() : mGltfModel->getJointDescriptorSetLBS();
+        VkDescriptorSet descriptorSets[] = {
+            mGltfModel->getTextureDescriptorSet(),
+            activeJointSet
+        };
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdPipelineLayout, 0, 2, descriptorSets, 0, nullptr);
+
+        struct PushConstants {
+            glm::mat4 mvp;
+            int aModelStride;
+        } pc;
+        pc.mvp = viewProj;
+        pc.aModelStride = static_cast<int>(i * jointCount);
+
+        vkCmdPushConstants(
+            commandBuffer,
+            mRenderData.rdPipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT,
+            0,
+            sizeof(pc),
+            &pc
+        );
+
+        mGltfModel->draw(commandBuffer);
+    }
 
     mUserInterface.render(commandBuffer);
 
@@ -611,6 +581,7 @@ void VkRenderer::cleanup() {
     mTexture.cleanup(mRenderData);
     mPipeline.cleanup(mRenderData);
     mMesh.cleanup(mRenderData);
+    mGltfInstances.clear();
     if (mGltfModel != nullptr) {
         mGltfModel->cleanup(mRenderData);
         mGltfModel.reset();

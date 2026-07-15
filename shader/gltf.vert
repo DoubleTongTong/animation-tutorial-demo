@@ -11,6 +11,7 @@ layout (location = 1) out vec2 texCoord;
 
 layout(push_constant) uniform Push {
     mat4 mvp;
+    int aModelStride;
 } push;
 
 layout (std430, set = 1, binding = 0) readonly buffer JointMatrices {
@@ -19,10 +20,10 @@ layout (std430, set = 1, binding = 0) readonly buffer JointMatrices {
 
 void main() {
     mat4 skinMat =
-        aJointWeight.x * jointMat[int(aJointNum.x)] +
-        aJointWeight.y * jointMat[int(aJointNum.y)] +
-        aJointWeight.z * jointMat[int(aJointNum.z)] +
-        aJointWeight.w * jointMat[int(aJointNum.w)];
+        aJointWeight.x * jointMat[int(aJointNum.x) + push.aModelStride] +
+        aJointWeight.y * jointMat[int(aJointNum.y) + push.aModelStride] +
+        aJointWeight.z * jointMat[int(aJointNum.z) + push.aModelStride] +
+        aJointWeight.w * jointMat[int(aJointNum.w) + push.aModelStride];
 
     gl_Position = push.mvp * skinMat * vec4(aPos, 1.0);
     normal = normalize(vec3(skinMat * vec4(aNormal, 0.0)));

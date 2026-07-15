@@ -79,7 +79,7 @@ void GltfAnimationClip::setAnimationFrame(
     }
 }
 
-float GltfAnimationClip::getClipEndTime() {
+float GltfAnimationClip::getClipEndTime() const {
     float maxTime = 0.0f;
     for (const auto& channel : mAnimationChannels) {
         maxTime = std::max(maxTime, channel->getMaxTime());
@@ -87,6 +87,6 @@ float GltfAnimationClip::getClipEndTime() {
     return maxTime;
 }
 
-std::string GltfAnimationClip::getClipName() {
+std::string GltfAnimationClip::getClipName() const {
     return mClipName;
 }

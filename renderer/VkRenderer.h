@@ -15,6 +15,7 @@
 #include "Timer.h"
 #include "Camera.h"
 #include "GltfModel.h"
+#include "GltfInstance.h"
 
 class VkRenderer {
 public:
@@ -53,6 +54,7 @@ private:
     Camera mCamera{};
     // glTF 模型智能指针成员变量
     std::shared_ptr<GltfModel> mGltfModel = nullptr;
+    std::vector<std::shared_ptr<GltfInstance>> mGltfInstances{};
     bool mMouseLock = false;
     int mMouseXPos = 0;
     int mMouseYPos = 0;

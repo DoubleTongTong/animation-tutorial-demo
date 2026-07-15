@@ -59,7 +59,6 @@ struct VkRenderData {
     VkImageView rdDepthImageView = VK_NULL_HANDLE;
 
     // ImGui specific dynamic data
-    skinningMode rdGPUDualQuatVertexSkinning = skinningMode::linear;
     uint32_t rdTriangleCount = 0;
     float rdFrameTime = 0.0f;
     int rdFieldOfView = 90;
@@ -71,27 +70,6 @@ struct VkRenderData {
     float rdTickDiff = 0.0f;
     glm::vec3 rdCameraWorldPosition = glm::vec3(0.5f, 0.25f, 1.0f);
 
-    // Animation control variables
-    bool rdPlayAnimation = true;
-    std::vector<std::string> rdClipNames{};
-    int rdAnimClip = 0;
-    int rdAnimClipSize = 0;
-    float rdAnimSpeed = 1.0f;
-    float rdAnimTimePosition = 0.0f;
-    float rdAnimEndTime = 0.0f;
-    float rdAnimBlendFactor = 1.0f;
-
-    blendMode rdBlendingMode = blendMode::fadeinout;
-    int rdCrossBlendDestAnimClip = 0;
-    float rdAnimCrossBlendFactor = 0.0f;
-
-    int rdModelNodeCount = 0;
-    int rdSkelSplitNode = 0;
-    std::vector<std::string> rdSkelSplitNodeNames{};
-
-    ikMode rdIkMode = ikMode::off;
-    int rdIkIterations = 15;
-    glm::vec3 rdIkTargetPos = glm::vec3(0.0f, 1.0f, 0.0f);
-    int rdIkEffectorNode = 0;
-    int rdIkRootNode = 0;
+    int rdNumberOfInstances = 0;
+    int rdCurrentSelectedInstance = 0;
 };

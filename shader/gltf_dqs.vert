@@ -11,6 +11,7 @@ layout (location = 1) out vec2 texCoord;
 
 layout(push_constant) uniform Push {
     mat4 mvp;
+    int aModelStride;
 } push;
 
 layout (std430, set = 1, binding = 0) readonly buffer JointDualQuats {
@@ -27,10 +28,10 @@ vec4 quat_mul(vec4 q1, vec4 q2) {
 
 // 使用 DLB（双四元数线性混合）获取混合后的关节变换
 mat2x4 getJointTransform(ivec4 joints, vec4 weights) {
-    mat2x4 dq0 = jointDQs[joints.x];
-    mat2x4 dq1 = jointDQs[joints.y];
-    mat2x4 dq2 = jointDQs[joints.z];
-    mat2x4 dq3 = jointDQs[joints.w];
+    mat2x4 dq0 = jointDQs[joints.x + push.aModelStride];
+    mat2x4 dq1 = jointDQs[joints.y + push.aModelStride];
+    mat2x4 dq2 = jointDQs[joints.z + push.aModelStride];
+    mat2x4 dq3 = jointDQs[joints.w + push.aModelStride];
 
     // 邻域对齐以解决对跖点歧义（确保沿最短路径插值）
     weights.y *= (dot(dq0[0], dq1[0]) < 0.0) ? -1.0 : 1.0;

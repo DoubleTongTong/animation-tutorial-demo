@@ -133,7 +133,7 @@ bool Pipeline::init(VkRenderData& renderData) {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = 64; // sizeof(float) * 16 (for 4x4 matrix)
+    pushConstantRange.size = 80; // sizeof(glm::mat4) + sizeof(int) plus padding (aligned to 16 bytes)
 
     VkDescriptorSetLayout layouts[] = { renderData.rdTextureDescriptorSetLayout, renderData.rdJointDescriptorSetLayout };
 

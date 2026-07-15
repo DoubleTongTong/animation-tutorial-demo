@@ -4,10 +4,12 @@
 #include "VkRenderData.h"
 #include <glm/glm.hpp>
 
+struct ModelSettings;
+
 class UserInterface {
 public:
     void init(VkRenderData &renderData, GLFWwindow* window);
-    void createFrame(VkRenderData &renderData, const glm::mat4& viewProj = glm::mat4(1.0f));
+    void createFrame(VkRenderData &renderData, ModelSettings &settings, const glm::mat4& viewProj = glm::mat4(1.0f));
     void render(VkCommandBuffer commandBuffer);
     void cleanup(VkRenderData &renderData);
 

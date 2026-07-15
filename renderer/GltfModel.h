@@ -38,30 +38,9 @@ public:
     // 清理创建的资源
     void cleanup(VkRenderData& renderData);
 
-    // 应用顶点蒙皮更新 (常规 LBS / 双四元数 DQS)
-    void applyVertexSkinningLBS(float time);
-    void applyVertexSkinningDQS(float time);
-
-    // 动画控制相关辅助函数
-    int getClipSize() const { return static_cast<int>(mAnimClips.size()); }
-    std::string getClipName(int index);
-    float getAnimationEndTime(int index);
-    void playAnimation(int index, float speed, float blendFactor = 1.0f);
-    void playAnimation(int sourceAnimNum, int destAnimNum, float speedDivider, float blendFactor);
-    void blendAnimationFrame(int index, float timePos, float blendFactor);
-    void crossBlendAnimationFrame(int sourceAnimNumber, int destAnimNumber, float time, float blendFactor);
-    void resetNodeData();
-
-    void setSkeletonSplitNode(int nodeNum);
-    std::string getNodeName(int nodeNum);
-
-    void setInverseKinematicsNodes(int effectorNodeNum, int ikChainRootNodeNum);
-    void solveIKByCCD(glm::vec3 target);
-    void solveIKByFABRIK(glm::vec3 target);
-    void updateNodeMatrices(std::shared_ptr<GltfNode> node);
-
     // 获取模型的三角形总数
     uint32_t getTriangleCount() const { return mIndexCount / 3; }
+    size_t getClipSize() const { return mAnimClips.size(); }
 
     // 获取关节描述符集 (常规 LBS / 双四元数 DQS)
     VkDescriptorSet getJointDescriptorSetLBS() const { return mJointDescriptorSet; }
@@ -70,29 +49,29 @@ public:
     // 获取纹理描述符集
     VkDescriptorSet getTextureDescriptorSet() const { return mTex.getDescriptorSet(); }
 
-private:
-    // 创建 GPU 关节矩阵 SSBO 资源及描述符
-    bool createJointSSBO(VkRenderData& renderData);
+    std::shared_ptr<GltfNode> buildInstanceNodeTree(std::vector<std::shared_ptr<GltfNode>>& nodeList);
+    void buildInstanceNodeList(std::shared_ptr<GltfNode> node, std::vector<std::shared_ptr<GltfNode>>& nodeList);
 
-    // 创建 GPU 本地缓冲区并上传数据的辅助函数
-    bool createGPUBuffer(VkRenderData& renderData, VkBufferUsageFlags usage, const void* data, VkDeviceSize size, VkBuffer& buffer, VmaAllocation& allocation);
+    size_t getNodeCount() const { return mModel ? mModel->nodes.size() : 0; }
+    const std::vector<glm::mat4>& getInverseBindMatrices() const { return mInverseBindMatrices; }
+    const std::vector<int>& getNodeToJoint() const { return mNodeToJoint; }
+    const std::vector<GltfAnimationClip>& getAnimClips() const { return mAnimClips; }
 
-    // 更新 GPU 本地缓冲区数据的辅助函数 (使用临时 staging 缓冲传输)
-    void updateVertexBuffer(VkRenderData& renderData, const void* data, VkDeviceSize size);
-
-    // 递归更新骨骼 TRS 矩阵与关节矩阵
-    void updateJoints(std::shared_ptr<GltfNode> node, const glm::mat4& parentMatrix, float time);
+    void updateGPUJointBuffers(VkRenderData& renderData, const std::vector<glm::mat4>& allJointMatrices, const std::vector<glm::mat2x4>& allJointDualQuats);
 
     // 递归读取并更新节点 TRS 及全局矩阵
     void getNodeData(std::shared_ptr<GltfNode> node, const glm::mat4& parentMatrix);
-    void resetNodeData(std::shared_ptr<GltfNode> treeNode, glm::mat4 parentNodeMatrix);
     // 递归遍历并创建子节点结构
     void getNodes(std::shared_ptr<GltfNode> node);
 
+private:
+    // 创建 GPU 关节矩阵 SSBO 资源及描述符
+    bool createJointSSBO(VkRenderData& renderData);
+    // 创建 GPU 本地缓冲区并上传数据的辅助函数
+    bool createGPUBuffer(VkRenderData& renderData, VkBufferUsageFlags usage, const void* data, VkDeviceSize size, VkBuffer& buffer, VmaAllocation& allocation);
+
     std::shared_ptr<tinygltf::Model> mModel = nullptr;
 
-    // 骨骼节点树根节点
-    std::shared_ptr<GltfNode> mRootNode = nullptr;
     // 逆绑定矩阵数组
     std::vector<glm::mat4> mInverseBindMatrices;
 
@@ -101,8 +80,6 @@ private:
     std::vector<Vertex> mOriginalVertices;
     std::vector<JointIndices> mJointVec;
     std::vector<JointWeights> mWeightVec;
-    std::vector<glm::mat4> mJointMatrices;
-    std::vector<glm::mat2x4> mJointDualQuats;
     std::vector<int> mNodeToJoint;
 
     // Vulkan 顶点与索引缓冲区及其分配的显存
@@ -132,14 +109,5 @@ private:
 
     // 动画片段列表与扁平化节点列表
     std::vector<GltfAnimationClip> mAnimClips{};
-    std::vector<std::shared_ptr<GltfNode>> mNodeList;
-
     void getAnimations();
-    void buildNodeList(std::shared_ptr<GltfNode> node);
-
-    std::vector<bool> mAdditiveAnimationMask{};
-    std::vector<bool> mInvertedAdditiveAnimationMask{};
-    void updateAdditiveMask(std::shared_ptr<GltfNode> treeNode, int splitNodeNum);
-
-    IKSolver mIKSolver{};
 };

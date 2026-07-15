@@ -6,6 +6,7 @@
 #include "imgui_impl_vulkan.h"
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
+#include "ModelSettings.h"
 
 void UserInterface::init(VkRenderData &renderData, GLFWwindow* window) {
     // Create Descriptor Pool for ImGui
@@ -84,17 +85,17 @@ glm::vec2 projectWorldToScreen(const glm::vec3& worldPos, const glm::mat4& viewP
     return glm::vec2(screenX, screenY);
 }
 
-void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewProj) {
+void UserInterface::createFrame(VkRenderData &renderData, ModelSettings &settings, const glm::mat4& viewProj) {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
     // 绘制 Target Position 的 3D 坐标轴投影
-    if (renderData.rdIkMode != ikMode::off) {
+    if (settings.msIkMode != ikMode::off) {
         float screenW = static_cast<float>(renderData.rdVkbSwapchain.extent.width);
         float screenH = static_cast<float>(renderData.rdVkbSwapchain.extent.height);
 
-        glm::vec3 center = renderData.rdIkTargetPos;
+        glm::vec3 center = settings.msIkTargetWorldPos;
         glm::vec3 axisX = center + glm::vec3(0.2f, 0.0f, 0.0f);
         glm::vec3 axisY = center + glm::vec3(0.0f, 0.2f, 0.0f);
         glm::vec3 axisZ = center + glm::vec3(0.0f, 0.0f, 0.2f);
@@ -161,29 +162,53 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
     ImGui::Separator();
     ImGui::Text("Vertex Skinning:");
     ImGui::SameLine();
-    if (ImGui::RadioButton("Linear", renderData.rdGPUDualQuatVertexSkinning == skinningMode::linear)) {
-        renderData.rdGPUDualQuatVertexSkinning = skinningMode::linear;
+    if (ImGui::RadioButton("Linear", settings.msVertexSkinningMode == skinningMode::linear)) {
+        settings.msVertexSkinningMode = skinningMode::linear;
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Dual Quaternion", renderData.rdGPUDualQuatVertexSkinning == skinningMode::dualQuat)) {
-        renderData.rdGPUDualQuatVertexSkinning = skinningMode::dualQuat;
+    if (ImGui::RadioButton("Dual Quaternion", settings.msVertexSkinningMode == skinningMode::dualQuat)) {
+        settings.msVertexSkinningMode = skinningMode::dualQuat;
     }
 
     ImGui::Separator();
+
+    // glTF 实例切换控制栏
+    if (ImGui::CollapsingHeader("glTF Instances")) {
+        ImGui::Text("Selected Instance");
+        ImGui::SameLine();
+        if (ImGui::ArrowButton("##Prev", ImGuiDir_Left)) {
+            if (renderData.rdCurrentSelectedInstance > 0) {
+                renderData.rdCurrentSelectedInstance--;
+            }
+        }
+        ImGui::SameLine();
+        ImGui::Text("%d", renderData.rdCurrentSelectedInstance);
+        ImGui::SameLine();
+        if (ImGui::ArrowButton("##Next", ImGuiDir_Right)) {
+            if (renderData.rdCurrentSelectedInstance < renderData.rdNumberOfInstances - 1) {
+                renderData.rdCurrentSelectedInstance++;
+            }
+        }
+
+        ImGui::SliderFloat2("World Position", &settings.msWorldPosition.x, -20.0f, 20.0f);
+        ImGui::SliderFloat3("World Rotation", &settings.msWorldRotation.x, -180.0f, 180.0f);
+        ImGui::Checkbox("Draw Model", &settings.msDrawModel);
+    }
+
     if (ImGui::CollapsingHeader("glTF Animation")) {
         std::string curVal = "None";
-        if (renderData.rdAnimClip >= 0 && renderData.rdAnimClip < renderData.rdClipNames.size()) {
-            curVal = renderData.rdClipNames.at(renderData.rdAnimClip);
+        if (settings.msAnimClip >= 0 && settings.msAnimClip < settings.msClipNames.size()) {
+            curVal = settings.msClipNames.at(settings.msAnimClip);
         }
 
         ImGui::Text("Clip Combo");
         ImGui::SameLine();
         if (ImGui::BeginCombo("##ClipCombo", curVal.c_str())) {
-            for (int i = 0; i < renderData.rdClipNames.size(); ++i) {
-                const bool isSelected = (renderData.rdAnimClip == i);
-                std::string selVal = renderData.rdClipNames.at(i);
+            for (int i = 0; i < settings.msClipNames.size(); ++i) {
+                const bool isSelected = (settings.msAnimClip == i);
+                std::string selVal = settings.msClipNames.at(i);
                 if (ImGui::Selectable(selVal.c_str(), isSelected)) {
-                    renderData.rdAnimClip = i;
+                    settings.msAnimClip = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -192,25 +217,25 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
             ImGui::EndCombo();
         }
 
-        ImGui::Checkbox("Play Animation", &renderData.rdPlayAnimation);
+        ImGui::Checkbox("Play Animation", &settings.msPlayAnimation);
 
-        if (!renderData.rdPlayAnimation) {
+        if (!settings.msPlayAnimation) {
             ImGui::BeginDisabled();
         }
         ImGui::Text("Speed  ");
         ImGui::SameLine();
-        ImGui::SliderFloat("##ClipSpeed", &renderData.rdAnimSpeed, 0.0f, 2.0f);
-        if (!renderData.rdPlayAnimation) {
+        ImGui::SliderFloat("##ClipSpeed", &settings.msAnimSpeed, 0.0f, 2.0f);
+        if (!settings.msPlayAnimation) {
             ImGui::EndDisabled();
         }
 
-        if (renderData.rdPlayAnimation) {
+        if (settings.msPlayAnimation) {
             ImGui::BeginDisabled();
         }
         ImGui::Text("Timepos");
         ImGui::SameLine();
-        ImGui::SliderFloat("##ClipPos", &renderData.rdAnimTimePosition, 0.0f, renderData.rdAnimEndTime);
-        if (renderData.rdPlayAnimation) {
+        ImGui::SliderFloat("##ClipPos", &settings.msAnimTimePosition, 0.0f, settings.msAnimEndTime);
+        if (settings.msPlayAnimation) {
             ImGui::EndDisabled();
         }
     }
@@ -218,26 +243,26 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
     if (ImGui::CollapsingHeader("glTF Animation Blending")) {
         ImGui::Text("Blend Mode:");
         ImGui::SameLine();
-        if (ImGui::RadioButton("Fade In/Out", renderData.rdBlendingMode == blendMode::fadeinout)) {
-            renderData.rdBlendingMode = blendMode::fadeinout;
+        if (ImGui::RadioButton("Fade In/Out", settings.msBlendingMode == blendMode::fadeinout)) {
+            settings.msBlendingMode = blendMode::fadeinout;
         }
         ImGui::SameLine();
-        if (ImGui::RadioButton("Crossfade", renderData.rdBlendingMode == blendMode::crossfade)) {
-            renderData.rdBlendingMode = blendMode::crossfade;
+        if (ImGui::RadioButton("Crossfade", settings.msBlendingMode == blendMode::crossfade)) {
+            settings.msBlendingMode = blendMode::crossfade;
         }
         ImGui::SameLine();
-        if (ImGui::RadioButton("Additive", renderData.rdBlendingMode == blendMode::additive)) {
-            renderData.rdBlendingMode = blendMode::additive;
+        if (ImGui::RadioButton("Additive", settings.msBlendingMode == blendMode::additive)) {
+            settings.msBlendingMode = blendMode::additive;
         }
 
-        bool isSingle = (renderData.rdBlendingMode == blendMode::fadeinout);
+        bool isSingle = (settings.msBlendingMode == blendMode::fadeinout);
 
         if (!isSingle) {
             ImGui::BeginDisabled();
         }
         ImGui::Text("Blend Factor");
         ImGui::SameLine();
-        ImGui::SliderFloat("##BlendFactor", &renderData.rdAnimBlendFactor, 0.0f, 1.0f);
+        ImGui::SliderFloat("##BlendFactor", &settings.msAnimBlendFactor, 0.0f, 1.0f);
         if (!isSingle) {
             ImGui::EndDisabled();
         }
@@ -247,18 +272,18 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
         }
 
         std::string destCurVal = "None";
-        if (renderData.rdCrossBlendDestAnimClip >= 0 && renderData.rdCrossBlendDestAnimClip < renderData.rdClipNames.size()) {
-            destCurVal = renderData.rdClipNames.at(renderData.rdCrossBlendDestAnimClip);
+        if (settings.msCrossBlendDestAnimClip >= 0 && settings.msCrossBlendDestAnimClip < settings.msClipNames.size()) {
+            destCurVal = settings.msClipNames.at(settings.msCrossBlendDestAnimClip);
         }
 
         ImGui::Text("Dest Clip   ");
         ImGui::SameLine();
         if (ImGui::BeginCombo("##DestClipCombo", destCurVal.c_str())) {
-            for (int i = 0; i < renderData.rdClipNames.size(); ++i) {
-                const bool isSelected = (renderData.rdCrossBlendDestAnimClip == i);
-                std::string selVal = renderData.rdClipNames.at(i);
+            for (int i = 0; i < settings.msClipNames.size(); ++i) {
+                const bool isSelected = (settings.msCrossBlendDestAnimClip == i);
+                std::string selVal = settings.msClipNames.at(i);
                 if (ImGui::Selectable(selVal.c_str(), isSelected)) {
-                    renderData.rdCrossBlendDestAnimClip = i;
+                    settings.msCrossBlendDestAnimClip = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -269,7 +294,7 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
 
         ImGui::Text("Cross Blend ");
         ImGui::SameLine();
-        ImGui::SliderFloat("##CrossBlendFactor", &renderData.rdAnimCrossBlendFactor, 0.0f, 1.0f);
+        ImGui::SliderFloat("##CrossBlendFactor", &settings.msAnimCrossBlendFactor, 0.0f, 1.0f);
 
         if (isSingle) {
             ImGui::EndDisabled();
@@ -277,24 +302,24 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
 
         ImGui::Separator();
 
-        bool isAdditive = (renderData.rdBlendingMode == blendMode::additive);
+        bool isAdditive = (settings.msBlendingMode == blendMode::additive);
         if (!isAdditive) {
             ImGui::BeginDisabled();
         }
 
         std::string splitNodeCurVal = "(invalid)";
-        if (renderData.rdSkelSplitNode >= 0 && renderData.rdSkelSplitNode < renderData.rdSkelSplitNodeNames.size()) {
-            splitNodeCurVal = renderData.rdSkelSplitNodeNames.at(renderData.rdSkelSplitNode);
+        if (settings.msSkelSplitNode >= 0 && settings.msSkelSplitNode < settings.msSkelSplitNodeNames.size()) {
+            splitNodeCurVal = settings.msSkelSplitNodeNames.at(settings.msSkelSplitNode);
         }
 
         ImGui::Text("Split Node  ");
         ImGui::SameLine();
         if (ImGui::BeginCombo("##SplitNodeCombo", splitNodeCurVal.c_str())) {
-            for (int i = 0; i < renderData.rdSkelSplitNodeNames.size(); ++i) {
-                const bool isSelected = (renderData.rdSkelSplitNode == i);
-                std::string selVal = renderData.rdSkelSplitNodeNames.at(i);
+            for (int i = 0; i < settings.msSkelSplitNodeNames.size(); ++i) {
+                const bool isSelected = (settings.msSkelSplitNode == i);
+                std::string selVal = settings.msSkelSplitNodeNames.at(i);
                 if (ImGui::Selectable(selVal.c_str(), isSelected)) {
-                    renderData.rdSkelSplitNode = i;
+                    settings.msSkelSplitNode = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -311,39 +336,39 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
     if (ImGui::CollapsingHeader("Inverse Kinematics")) {
         ImGui::Text("IK Mode:");
         ImGui::SameLine();
-        if (ImGui::RadioButton("Off", renderData.rdIkMode == ikMode::off)) {
-            renderData.rdIkMode = ikMode::off;
+        if (ImGui::RadioButton("Off", settings.msIkMode == ikMode::off)) {
+            settings.msIkMode = ikMode::off;
         }
         ImGui::SameLine();
-        if (ImGui::RadioButton("CCD", renderData.rdIkMode == ikMode::ccd)) {
-            renderData.rdIkMode = ikMode::ccd;
+        if (ImGui::RadioButton("CCD", settings.msIkMode == ikMode::ccd)) {
+            settings.msIkMode = ikMode::ccd;
         }
         ImGui::SameLine();
-        if (ImGui::RadioButton("FABRIK", renderData.rdIkMode == ikMode::fabrik)) {
-            renderData.rdIkMode = ikMode::fabrik;
+        if (ImGui::RadioButton("FABRIK", settings.msIkMode == ikMode::fabrik)) {
+            settings.msIkMode = ikMode::fabrik;
         }
 
         ImGui::Text("Iterations");
         ImGui::SameLine();
-        ImGui::SliderInt("##IKIterations", &renderData.rdIkIterations, 1, 50);
+        ImGui::SliderInt("##IKIterations", &settings.msIkIterations, 1, 50);
 
         ImGui::Text("Target Pos");
         ImGui::SameLine();
-        ImGui::SliderFloat3("##IKTargetPos", &renderData.rdIkTargetPos.x, -5.0f, 5.0f);
+        ImGui::SliderFloat3("##IKTargetPos", &settings.msIkTargetPos.x, -5.0f, 5.0f);
 
         // Combo box for Effector Node
         std::string effectorCurVal = "(invalid)";
-        if (renderData.rdIkEffectorNode >= 0 && renderData.rdIkEffectorNode < renderData.rdSkelSplitNodeNames.size()) {
-            effectorCurVal = renderData.rdSkelSplitNodeNames.at(renderData.rdIkEffectorNode);
+        if (settings.msIkEffectorNode >= 0 && settings.msIkEffectorNode < settings.msSkelSplitNodeNames.size()) {
+            effectorCurVal = settings.msSkelSplitNodeNames.at(settings.msIkEffectorNode);
         }
         ImGui::Text("Effector   ");
         ImGui::SameLine();
         if (ImGui::BeginCombo("##EffectorCombo", effectorCurVal.c_str())) {
-            for (int i = 0; i < renderData.rdSkelSplitNodeNames.size(); ++i) {
-                const bool isSelected = (renderData.rdIkEffectorNode == i);
-                std::string selVal = renderData.rdSkelSplitNodeNames.at(i);
+            for (int i = 0; i < settings.msSkelSplitNodeNames.size(); ++i) {
+                const bool isSelected = (settings.msIkEffectorNode == i);
+                std::string selVal = settings.msSkelSplitNodeNames.at(i);
                 if (ImGui::Selectable(selVal.c_str(), isSelected)) {
-                    renderData.rdIkEffectorNode = i;
+                    settings.msIkEffectorNode = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();
@@ -354,17 +379,17 @@ void UserInterface::createFrame(VkRenderData &renderData, const glm::mat4& viewP
 
         // Combo box for Root Node
         std::string rootCurVal = "(invalid)";
-        if (renderData.rdIkRootNode >= 0 && renderData.rdIkRootNode < renderData.rdSkelSplitNodeNames.size()) {
-            rootCurVal = renderData.rdSkelSplitNodeNames.at(renderData.rdIkRootNode);
+        if (settings.msIkRootNode >= 0 && settings.msIkRootNode < settings.msSkelSplitNodeNames.size()) {
+            rootCurVal = settings.msSkelSplitNodeNames.at(settings.msIkRootNode);
         }
         ImGui::Text("IK Root    ");
         ImGui::SameLine();
         if (ImGui::BeginCombo("##IKRootCombo", rootCurVal.c_str())) {
-            for (int i = 0; i < renderData.rdSkelSplitNodeNames.size(); ++i) {
-                const bool isSelected = (renderData.rdIkRootNode == i);
-                std::string selVal = renderData.rdSkelSplitNodeNames.at(i);
+            for (int i = 0; i < settings.msSkelSplitNodeNames.size(); ++i) {
+                const bool isSelected = (settings.msIkRootNode == i);
+                std::string selVal = settings.msSkelSplitNodeNames.at(i);
                 if (ImGui::Selectable(selVal.c_str(), isSelected)) {
-                    renderData.rdIkRootNode = i;
+                    settings.msIkRootNode = i;
                 }
                 if (isSelected) {
                     ImGui::SetItemDefaultFocus();

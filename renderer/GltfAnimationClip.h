@@ -26,8 +26,8 @@ public:
         const std::vector<bool>& additiveMask,
         float time);
 
-    float getClipEndTime();
-    std::string getClipName();
+    float getClipEndTime() const;
+    std::string getClipName() const;
 
 private:
     std::vector<std::shared_ptr<GltfAnimationChannel>> mAnimationChannels;

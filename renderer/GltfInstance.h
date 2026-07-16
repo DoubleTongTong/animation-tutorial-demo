@@ -22,6 +22,10 @@ public:
     const std::vector<glm::mat4>& getJointMatrices() const { return mJointMatrices; }
     const std::vector<glm::mat2x4>& getJointDualQuats() const { return mJointDualQuats; }
 
+    std::shared_ptr<GltfModel> getModel() const { return mGltfModel; }
+    void setModelInstanceIndex(int idx) { mModelInstanceIndex = idx; }
+    int getModelInstanceIndex() const { return mModelInstanceIndex; }
+
     void updateAnimation();
     void solveIK();
 
@@ -61,4 +65,5 @@ private:
     int mLastSplitNode = -1;
     int mLastEffector = -1;
     int mLastRoot = -1;
+    int mModelInstanceIndex = 0;
 };

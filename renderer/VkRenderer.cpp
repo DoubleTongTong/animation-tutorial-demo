@@ -50,13 +50,16 @@ bool VkRenderer::init() {
         return false;
     }
 
-    // 初始化并加载 glTF 模型
-    mGltfModel = std::make_shared<GltfModel>();
-    std::string modelPath = "assets/Woman.gltf";
-
-    Logger::log(1, "尝试加载 glTF 模型，路径为: %s\n", modelPath.c_str());
-    if (!mGltfModel->loadModel(mRenderData, modelPath)) {
-        Logger::log(1, "加载 glTF 模型失败\n");
+    // 初始化并加载多个 glTF 模型
+    mGltfModels.resize(2);
+    mGltfModels[0] = std::make_shared<GltfModel>();
+    if (!mGltfModels[0]->loadModel(mRenderData, "assets/Woman.gltf", "texture/Woman.png")) {
+        Logger::log(1, "加载 glTF 模型 0 失败\n");
+        return false;
+    }
+    mGltfModels[1] = std::make_shared<GltfModel>();
+    if (!mGltfModels[1]->loadModel(mRenderData, "assets/Woman.gltf", "texture/Woman2.png")) {
+        Logger::log(1, "加载 glTF 模型 1 失败\n");
         return false;
     }
 
@@ -66,8 +69,10 @@ bool VkRenderer::init() {
     for (int i = 0; i < 200; ++i) {
         int xPos = std::rand() % 40 - 20;
         int zPos = std::rand() % 40 - 20;
-        mGltfInstances.emplace_back(std::make_shared<GltfInstance>(mGltfModel, glm::vec2(static_cast<float>(xPos), static_cast<float>(zPos)), true));
-        numTriangles += mGltfModel->getTriangleCount();
+        int modelIdx = std::rand() % 2;
+        auto model = mGltfModels[modelIdx];
+        mGltfInstances.emplace_back(std::make_shared<GltfInstance>(model, glm::vec2(static_cast<float>(xPos), static_cast<float>(zPos)), true));
+        numTriangles += model->getTriangleCount();
     }
     mRenderData.rdTriangleCount = numTriangles;
     mRenderData.rdNumberOfInstances = static_cast<int>(mGltfInstances.size());
@@ -436,32 +441,62 @@ bool VkRenderer::draw() {
         instance->updateAnimation();
     }
 
-    std::vector<glm::mat4> allJointMatrices{};
-    std::vector<glm::mat2x4> allJointDualQuats{};
-    size_t jointCount = mGltfModel->getInverseBindMatrices().size();
-    
-    allJointMatrices.resize(mGltfInstances.size() * jointCount, glm::mat4(1.0f));
-    allJointDualQuats.resize(mGltfInstances.size() * jointCount, glm::mat2x4(0.0f));
+    std::vector<std::vector<glm::mat4>> allJointMatrices(mGltfModels.size());
+    std::vector<std::vector<glm::mat2x4>> allJointDualQuats(mGltfModels.size());
 
+    std::vector<int> instanceCountPerModel(mGltfModels.size(), 0);
+    for (const auto& instance : mGltfInstances) {
+        for (size_t m = 0; m < mGltfModels.size(); ++m) {
+            if (instance->getModel() == mGltfModels[m]) {
+                instanceCountPerModel[m]++;
+                break;
+            }
+        }
+    }
+
+    for (size_t m = 0; m < mGltfModels.size(); ++m) {
+        size_t jointCount = mGltfModels[m]->getInverseBindMatrices().size();
+        allJointMatrices[m].resize(instanceCountPerModel[m] * jointCount, glm::mat4(1.0f));
+        allJointDualQuats[m].resize(instanceCountPerModel[m] * jointCount, glm::mat2x4(0.0f));
+    }
+
+    std::vector<int> currentModelInstanceIndex(mGltfModels.size(), 0);
     int currentTriangles = 0;
-    for (size_t i = 0; i < mGltfInstances.size(); ++i) {
-        auto &instance = mGltfInstances[i];
+
+    for (auto &instance : mGltfInstances) {
+        int modelIdx = -1;
+        for (size_t m = 0; m < mGltfModels.size(); ++m) {
+            if (instance->getModel() == mGltfModels[m]) {
+                modelIdx = static_cast<int>(m);
+                break;
+            }
+        }
+        if (modelIdx == -1) continue;
+
         ModelSettings settings = instance->getInstanceSettings();
         if (settings.msDrawModel) {
-            currentTriangles += mGltfModel->getTriangleCount();
+            currentTriangles += instance->getModel()->getTriangleCount();
         }
+
         const auto &joints = instance->getJointMatrices();
         const auto &dqs = instance->getJointDualQuats();
+        size_t jointCount = instance->getModel()->getInverseBindMatrices().size();
+        int instIdx = currentModelInstanceIndex[modelIdx]++;
+
+        instance->setModelInstanceIndex(instIdx);
+
         if (!joints.empty()) {
-            std::memcpy(&allJointMatrices[i * jointCount], joints.data(), joints.size() * sizeof(glm::mat4));
+            std::memcpy(&allJointMatrices[modelIdx][instIdx * jointCount], joints.data(), joints.size() * sizeof(glm::mat4));
         }
         if (!dqs.empty()) {
-            std::memcpy(&allJointDualQuats[i * jointCount], dqs.data(), dqs.size() * sizeof(glm::mat2x4));
+            std::memcpy(&allJointDualQuats[modelIdx][instIdx * jointCount], dqs.data(), dqs.size() * sizeof(glm::mat2x4));
         }
     }
     mRenderData.rdTriangleCount = currentTriangles;
 
-    mGltfModel->updateGPUJointBuffers(mRenderData, allJointMatrices, allJointDualQuats);
+    for (size_t m = 0; m < mGltfModels.size(); ++m) {
+        mGltfModels[m]->updateGPUJointBuffers(mRenderData, allJointMatrices[m], allJointDualQuats[m]);
+    }
 
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
@@ -491,19 +526,21 @@ bool VkRenderer::draw() {
         VkPipeline activePipeline = useDQS ? mRenderData.rdPipelineDQS : mRenderData.rdPipeline;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline);
 
-        VkDescriptorSet activeJointSet = useDQS ? mGltfModel->getJointDescriptorSetDQS() : mGltfModel->getJointDescriptorSetLBS();
+        auto model = instance->getModel();
+        VkDescriptorSet activeJointSet = useDQS ? model->getJointDescriptorSetDQS() : model->getJointDescriptorSetLBS();
         VkDescriptorSet descriptorSets[] = {
-            mGltfModel->getTextureDescriptorSet(),
+            model->getTextureDescriptorSet(),
             activeJointSet
         };
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdPipelineLayout, 0, 2, descriptorSets, 0, nullptr);
 
+        size_t jointCount = model->getInverseBindMatrices().size();
         struct PushConstants {
             glm::mat4 mvp;
             int aModelStride;
         } pc;
         pc.mvp = viewProj;
-        pc.aModelStride = static_cast<int>(i * jointCount);
+        pc.aModelStride = static_cast<int>(instance->getModelInstanceIndex() * jointCount);
 
         vkCmdPushConstants(
             commandBuffer,
@@ -514,7 +551,7 @@ bool VkRenderer::draw() {
             &pc
         );
 
-        mGltfModel->draw(commandBuffer);
+        model->draw(commandBuffer);
     }
 
     mUserInterface.render(commandBuffer);
@@ -582,10 +619,12 @@ void VkRenderer::cleanup() {
     mPipeline.cleanup(mRenderData);
     mMesh.cleanup(mRenderData);
     mGltfInstances.clear();
-    if (mGltfModel != nullptr) {
-        mGltfModel->cleanup(mRenderData);
-        mGltfModel.reset();
+    for (auto& model : mGltfModels) {
+        if (model != nullptr) {
+            model->cleanup(mRenderData);
+        }
     }
+    mGltfModels.clear();
     mRenderPass.cleanup(mRenderData);
 
     mFramebuffer.cleanup(mRenderData);

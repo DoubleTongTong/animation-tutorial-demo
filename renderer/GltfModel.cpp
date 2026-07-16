@@ -7,7 +7,7 @@
 #include <cstring>
 #include <cassert>
 
-bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename) {
+bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename, const std::string& texturePath) {
     mModelPath = filename;
     mModel = std::make_shared<tinygltf::Model>();
     tinygltf::TinyGLTF loader;
@@ -208,8 +208,9 @@ bool GltfModel::loadModel(VkRenderData& renderData, const std::string& filename)
         return false;
     }
 
-    // 若无内嵌纹理，按照教程的要求加载外部的 texture/Woman.png 贴图
-    if (!mTex.create(renderData, "texture/Woman.png")) {
+    // 若无内嵌纹理，按照指定或默认的贴图加载
+    std::string texToLoad = texturePath.empty() ? "texture/Woman.png" : texturePath;
+    if (!mTex.create(renderData, texToLoad)) {
         return false;
     }
 

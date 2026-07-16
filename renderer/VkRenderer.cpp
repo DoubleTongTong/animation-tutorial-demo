@@ -515,9 +515,25 @@ bool VkRenderer::draw() {
     mUserInterface.createFrame(mRenderData, selectedSettings, viewProj);
     mGltfInstances.at(mRenderData.rdCurrentSelectedInstance)->setInstanceSettings(selectedSettings);
 
-    for (size_t i = 0; i < mGltfInstances.size(); ++i) {
-        auto &instance = mGltfInstances[i];
-        ModelSettings settings = instance->getInstanceSettings();
+    for (size_t m = 0; m < mGltfModels.size(); ++m) {
+        auto model = mGltfModels[m];
+        int count = instanceCountPerModel[m];
+        if (count == 0) {
+            continue;
+        }
+
+        std::shared_ptr<GltfInstance> firstInstance = nullptr;
+        for (const auto& instance : mGltfInstances) {
+            if (instance->getModel() == model) {
+                firstInstance = instance;
+                break;
+            }
+        }
+        if (!firstInstance) {
+            continue;
+        }
+
+        ModelSettings settings = firstInstance->getInstanceSettings();
         if (!settings.msDrawModel) {
             continue;
         }
@@ -526,7 +542,6 @@ bool VkRenderer::draw() {
         VkPipeline activePipeline = useDQS ? mRenderData.rdPipelineDQS : mRenderData.rdPipeline;
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline);
 
-        auto model = instance->getModel();
         VkDescriptorSet activeJointSet = useDQS ? model->getJointDescriptorSetDQS() : model->getJointDescriptorSetLBS();
         VkDescriptorSet descriptorSets[] = {
             model->getTextureDescriptorSet(),
@@ -540,7 +555,7 @@ bool VkRenderer::draw() {
             int aModelStride;
         } pc;
         pc.mvp = viewProj;
-        pc.aModelStride = static_cast<int>(instance->getModelInstanceIndex() * jointCount);
+        pc.aModelStride = static_cast<int>(jointCount);
 
         vkCmdPushConstants(
             commandBuffer,
@@ -551,7 +566,7 @@ bool VkRenderer::draw() {
             &pc
         );
 
-        model->draw(commandBuffer);
+        model->draw(commandBuffer, count);
     }
 
     mUserInterface.render(commandBuffer);

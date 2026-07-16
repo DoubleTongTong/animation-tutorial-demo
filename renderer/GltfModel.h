@@ -34,7 +34,7 @@ public:
     // 加载 glTF 模型并创建 Vulkan 缓冲与内嵌纹理
     bool loadModel(VkRenderData& renderData, const std::string& filename, const std::string& texturePath = "");
     // 在命令缓冲中录制绘制指令
-    void draw(VkCommandBuffer commandBuffer);
+    void draw(VkCommandBuffer commandBuffer, uint32_t instanceCount = 1);
     // 清理创建的资源
     void cleanup(VkRenderData& renderData);
 

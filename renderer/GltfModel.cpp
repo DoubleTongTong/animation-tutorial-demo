@@ -357,7 +357,7 @@ bool GltfModel::createJointSSBO(VkRenderData& renderData) {
     return true;
 }
 
-void GltfModel::draw(VkCommandBuffer commandBuffer) {
+void GltfModel::draw(VkCommandBuffer commandBuffer, uint32_t instanceCount) {
     if (mVertexBuffer == VK_NULL_HANDLE || mIndexBuffer == VK_NULL_HANDLE) {
         return;
     }
@@ -370,7 +370,7 @@ void GltfModel::draw(VkCommandBuffer commandBuffer) {
     vkCmdBindIndexBuffer(commandBuffer, mIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
     // 执行带索引的网格绘制
-    vkCmdDrawIndexed(commandBuffer, mIndexCount, 1, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, mIndexCount, instanceCount, 0, 0, 0);
 }
 
 void GltfModel::cleanup(VkRenderData& renderData) {
